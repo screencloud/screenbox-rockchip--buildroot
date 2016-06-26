@@ -122,7 +122,8 @@ config BR2_PACKAGE_QT5BASE_GUI
 	select BR2_PACKAGE_QT5BASE_LINUXFB if \
 	       !BR2_PACKAGE_QT5BASE_DIRECTFB && \
 	       !BR2_PACKAGE_QT5BASE_XCB && \
-	       !BR2_PACKAGE_QT5BASE_EGLFS
+	       !BR2_PACKAGE_QT5BASE_EGLFS && \
+	       !BR2_PACKAGE_QT5WAYLAND
 	help
 	  This option enables the Qt5Gui library.
 
