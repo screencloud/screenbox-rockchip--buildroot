@@ -1,0 +1,4 @@
+
+config BR2_RK1108_DSP_FIRMWARE
+	bool "RK1108 dsp firmware"
+
