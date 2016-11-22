@@ -15,3 +15,6 @@ menu "RK1108 Board Support Packages"
 		source "package/rockchip/rk1108/Config.in"
 endmenu
 endif
+
+source "package/rockchip/libcutils/Config.in"
+source "package/rockchip/adbd/Config.in"
