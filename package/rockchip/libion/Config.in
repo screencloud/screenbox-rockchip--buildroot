@@ -1,0 +1,4 @@
+
+config BR2_ROCKCHIP_LIBION
+	bool "Rockchip's libion porting from Android"
+
