@@ -18,4 +18,5 @@ endif
 
 source "package/rockchip/libcutils/Config.in"
 source "package/rockchip/libion/Config.in"
+source "package/rockchip/mpp/Config.in"
 source "package/rockchip/adbd/Config.in"
