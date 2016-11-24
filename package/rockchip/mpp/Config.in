@@ -1,9 +1,8 @@
+config BR2_PACKAGE_MPP
+	bool "MPP(Multimedia Processing Platform)"
 
-config BR2_ROCKCHIP_MPP
-	bool "Rockchip's MPP(Multimedia Processing Platform)"
-
-config BR2_ROCKCHIP_MPP_TEST
-	bool "Rockchip's MPP test bin"
-	depends on BR2_ROCKCHIP_MPP
+config BR2_PACKAGE_MPP_TEST
+	bool "MPP test bin"
+	depends on BR2_PACKAGE_MPP
 
 

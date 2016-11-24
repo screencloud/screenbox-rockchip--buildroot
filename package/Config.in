@@ -1,11 +1,8 @@
 menu "Target packages"
 
+	source "package/rockchip/Config.in"
 	source "package/busybox/Config.in"
 	source "package/skeleton/Config.in"
-
-menu "Rockchip packages"
-	source "package/rockchip/Config.in"
-endmenu
 
 menu "Audio and video applications"
 	source "package/alsa-utils/Config.in"

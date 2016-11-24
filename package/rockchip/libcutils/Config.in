@@ -1,4 +1,3 @@
-
-config BR2_ROCKCHIP_LIBCUTILS
-	bool "Rockchip's libcutils porting from Android"
+config BR2_PACKAGE_LIBCUTILS
+	bool "libcutils porting from Android"
 

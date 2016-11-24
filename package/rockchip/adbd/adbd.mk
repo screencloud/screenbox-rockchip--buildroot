@@ -7,13 +7,19 @@ ADBD_VERSION = 0d8ec12
 ADBD_SOURCE = adbd-${ADBD_VERSION}.tar.gz
 ADBD_FROM_GIT = y
 
+ADBD_DEPENDENCIES += libcutils
+
+ifeq ($(BR2_PACKAGE_BUSYBOX),y)
+ifeq ($(BR2_PACKAGE_START_STOP_DAEMON), y)
+ADBD_DEPENDENCIES += busybox
+endif
+endif
+
 ADBD_INIT_SCRIPT=package/rockchip/adbd/S30adbd
 
-define ADBD_INSTALL_INIT_SCRIPT
-$(INSTALL) -D -m 0755 ${ADBD_INIT_SCRIPT}\
-		$(TARGET_DIR)/etc/init.d/
+define ADBD_INSTALL_INIT_SYSV
+$(INSTALL) -D -m 0755 ${ADBD_INIT_SCRIPT} \
+		$(TARGET_DIR)/etc/init.d/S30adbd
 endef
-ADBD_POST_INSTALL_TARGET_HOOKS+=ADBD_INSTALL_INIT_SCRIPT
 
 $(eval $(cmake-package))
-#$(eval $(generic-package))
