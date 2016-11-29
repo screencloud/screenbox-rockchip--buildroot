@@ -1,7 +1,7 @@
 # Rockchip's MPP(Multimedia Processing Platform)
 # Author : Cody Xie <cody.xie@rock-chips.com>
 
-MPP_VERSION = a9eeb8f5
+MPP_VERSION = afb088e0
 MPP_SITE =  $(call github,HermanChen,mpp,$(MPP_VERSION))
 MPP_INSTALL_STAGING = YES
 MPP_SOURCE = mpp-${MPP_VERSION}.tar.gz
