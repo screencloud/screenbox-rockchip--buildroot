@@ -1,0 +1,296 @@
+diff -purN busybox-1.25.0/util-linux/fdisk.c busybox-1.25.0p1/util-linux/fdisk.c
+--- busybox-1.25.0/util-linux/fdisk.c	2015-10-11 21:31:51.000000000 +0800
++++ busybox-1.25.0p1/util-linux/fdisk.c	2016-12-20 13:43:52.000000000 +0800
+@@ -80,7 +80,8 @@ enum {
+ 	OPT_l = 1 << 3,
+ 	OPT_S = 1 << 4,
+ 	OPT_u = 1 << 5,
+-	OPT_s = (1 << 6) * ENABLE_FEATURE_FDISK_BLKSIZE,
++	OPT_t = 1 << 6,
++	OPT_s = (1 << 7) * ENABLE_FEATURE_FDISK_BLKSIZE,
+ };
+ 
+ 
+@@ -370,6 +371,11 @@ struct globals {
+ 	/* Partition tables */
+ 	struct pte ptes[MAXIMUM_PARTS];
+ };
++
++/******************************************************/
++int auto_creat_parttition = 0;
++/******************************************************/
++
+ #define G (*ptr_to_globals)
+ #define line_ptr             (G.line_ptr            )
+ #define disk_device          (G.disk_device         )
+@@ -847,6 +853,9 @@ menu(void)
+ #if ENABLE_FEATURE_FDISK_ADVANCED
+ 		puts("x\textra functionality (experts only)");
+ #endif
++        /*********************************************/
++        puts("z\t auto creat a partition");
++        /*********************************************/
+ 	} else if (LABEL_IS_SGI) {
+ 		puts("a\tselect bootable partition");    /* sgi flavour */
+ 		puts("b\tedit bootfile entry");          /* sgi */
+@@ -1810,8 +1819,11 @@ change_sysid(void)
+ 		return;
+ 	}
+ 	while (1) {
+-		sys = read_hex(get_sys_types());
+-
++		if(auto_creat_parttition)
++			sys = 0x0c;
++		else{
++			sys = read_hex(get_sys_types());
++		}
+ 		if (!sys && !LABEL_IS_SGI && !LABEL_IS_SUN) {
+ 			puts("Type 0 means free space to many systems\n"
+ 				"(but not to Linux). Having partitions of\n"
+@@ -2390,7 +2402,15 @@ add_partition(int n, int sys)
+ 			sector_t saved_start;
+ 
+ 			saved_start = start;
+-			start = read_int(cround(saved_start), cround(saved_start), cround(limit), 0, mesg);
++/***********************************************************************************/
++			if(auto_creat_parttition) {
++				start = cround(saved_start);
++			    printf("Using default value %u\n", cround(saved_start));
++			}
++		    else{
++				start = read_int(cround(saved_start), cround(saved_start), cround(limit), 0, mesg);
++		    }
++/***********************************************************************************/
+ 			if (display_in_cyl_units) {
+ 				start = (start - 1) * units_per_sector;
+ 				if (start < saved_start)
+@@ -2430,7 +2450,15 @@ add_partition(int n, int sys)
+ 		snprintf(mesg, sizeof(mesg),
+ 			 "Last %s or +size or +sizeM or +sizeK",
+ 			 str_units(SINGULAR));
+-		stop = read_int(cround(start), cround(limit), cround(limit), cround(start), mesg);
++/**********************************************************************************/
++		if(auto_creat_parttition) {
++			stop = cround(limit);
++		    printf("Using default value %u\n", cround(limit));
++		}
++		else{
++			stop = read_int(cround(start), cround(limit), cround(limit), cround(start), mesg);
++		}
++/**********************************************************************************/
+ 		if (display_in_cyl_units) {
+ 			stop = stop * units_per_sector - 1;
+ 			if (stop >limit)
+@@ -2518,27 +2546,31 @@ new_partition(void)
+ 			"   p   primary partition (1-4)\n",
+ 			(extended_offset ?
+ 			"l   logical (5 or over)" : "e   extended"));
+-		while (1) {
+-			c = read_nonempty(line);
+-			if ((c | 0x20) == 'p') {
+-				i = get_nonexisting_partition(0, 4);
+-				if (i >= 0)
+-					add_partition(i, LINUX_NATIVE);
+-				return;
+-			}
+-			if (c == 'l' && extended_offset) {
+-				add_logical();
+-				return;
+-			}
+-			if (c == 'e' && !extended_offset) {
+-				i = get_nonexisting_partition(0, 4);
+-				if (i >= 0)
+-					add_partition(i, EXTENDED);
+-				return;
++		if(auto_creat_parttition)
++			add_partition(0, LINUX_NATIVE);
++	    else{
++			while (1) {
++				c = read_nonempty(line);
++				if ((c | 0x20) == 'p') {
++					i = get_nonexisting_partition(0, 4);
++					if (i >= 0)
++						add_partition(i, LINUX_NATIVE);
++					return;
++				}
++				if (c == 'l' && extended_offset) {
++					add_logical();
++					return;
++				}
++				if (c == 'e' && !extended_offset) {
++					i = get_nonexisting_partition(0, 4);
++					if (i >= 0)
++						add_partition(i, EXTENDED);
++					return;
++				}
++				printf("Invalid partition number "
++						 "for type '%c'\n", c);
+ 			}
+-			printf("Invalid partition number "
+-					 "for type '%c'\n", c);
+-		}
++	    }
+ 	}
+ }
+ 
+@@ -2920,9 +2952,10 @@ int fdisk_main(int argc UNUSED_PARAM, ch
+ 	close_dev_fd(); /* needed: fd 3 must not stay closed */
+ 
+ 	opt_complementary = "b+:C+:H+:S+"; /* numeric params */
+-	opt = getopt32(argv, "b:C:H:lS:u" IF_FEATURE_FDISK_BLKSIZE("s"),
+-				&sector_size, &user_cylinders, &user_heads, &user_sectors);
++	opt = getopt32(argv, "b:C:H:lS:u:t" IF_FEATURE_FDISK_BLKSIZE("s"),
++				&sector_size, &user_cylinders, &user_heads, &user_sectors, &auto_creat_parttition);
+ 	argv += optind;
++	
+ 	if (opt & OPT_b) {
+ 		/* Ugly: this sector size is really per device,
+ 		 * so cannot be combined with multiple disks,
+@@ -2983,7 +3016,7 @@ int fdisk_main(int argc UNUSED_PARAM, ch
+ 		return 0;
+ 	}
+ #endif
+-
++	
+ #if ENABLE_FEATURE_FDISK_WRITABLE
+ 	if (!argv[0] || argv[1])
+ 		bb_show_usage();
+@@ -3001,6 +3034,15 @@ int fdisk_main(int argc UNUSED_PARAM, ch
+ 		/* If we return we may want to make an empty DOS label? */
+ 	}
+ 
++	if (opt & OPT_t) {
++		auto_creat_parttition = 1;
++		sector_offset = 8192;
++		new_partition();
++		change_sysid();
++		write_table(); 
++		return 0;
++	}
++	
+ 	while (1) {
+ 		int c;
+ 		bb_putchar('\n');
+diff -purN busybox-1.25.0/util-linux/mkfs_vfat.c busybox-1.25.0p1/util-linux/mkfs_vfat.c
+--- busybox-1.25.0/util-linux/mkfs_vfat.c	2016-05-27 01:42:46.000000000 +0800
++++ busybox-1.25.0p1/util-linux/mkfs_vfat.c	2016-12-20 13:43:56.000000000 +0800
+@@ -75,7 +75,7 @@ enum {
+ // TODO: make these cmdline options
+ // dont forget sanity check: backup_boot_sector + 3 <= reserved_sect
+ 	backup_boot_sector = 3,
+-	reserved_sect      = 6,
++	//reserved_sect      = 6,
+ };
+ 
+ // how many blocks we try to read while testing
+@@ -210,6 +210,45 @@ do { \
+  *        [-R reserved-sectors]
+  *        /dev/name [blocks]
+  */
++
++#define OFFSET_SIZE 0x2000  //8192 sector_num
++
++int mfks_vfat_get_sectors(int sector)
++{
++	int m_offset = OFFSET_SIZE;
++	
++	while(1) {
++		if (sector <= m_offset) {
++			break;
++		}
++		m_offset = m_offset << 1;
++	}
++	return m_offset;
++}
++
++static void
++mkfs_reread_partition_table(int fd)
++{
++	int i;
++
++	sync();
++	/* Users with slow external USB disks on a 320MHz ARM system (year 2011)
++	 * report that sleep is needed, otherwise BLKRRPART may fail with -EIO:
++	 */
++	i = ioctl_or_perror(fd, BLKRRPART, NULL,
++			"WARNING: rereading partition table "
++			"failed, kernel still uses old table");
++#if 0
++	if (dos_changed)
++		puts(
++		"\nWARNING: If you have created or modified any DOS 6.x\n"
++		"partitions, please see the fdisk manual page for additional\n"
++		"information");
++#endif
++
++}
++
++
+ int mkfs_vfat_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+ int mkfs_vfat_main(int argc UNUSED_PARAM, char **argv)
+ {
+@@ -334,16 +373,16 @@ int mkfs_vfat_main(int argc UNUSED_PARAM
+ 			 */
+ 			sect_per_clust = 1;
+ 			if (volume_size_bytes >= 260*1024*1024) {
+-				sect_per_clust = 8;
++				sect_per_clust = 128;
+ 				/* fight gcc: */
+ 				/* "error: integer overflow in expression" */
+ 				/* "error: right shift count >= width of type" */
+ 				if (sizeof(off_t) > 4) {
+ 					unsigned t = (volume_size_bytes >> 31 >> 1);
+ 					if (t >= 8/4)
+-						sect_per_clust = 16;
++						sect_per_clust = 128;
+ 					if (t >= 16/4)
+-						sect_per_clust = 32;
++						sect_per_clust = 128;
+ 				}
+ 			}
+ 		} else {
+@@ -390,6 +429,10 @@ int mkfs_vfat_main(int argc UNUSED_PARAM
+ 	//
+ 	// "mkdosfs -v -F 32 image5k 5" is the minimum:
+ 	// 2 sectors for FATs and 2 data sectors
++	int default_reserved_sect = 
++		mfks_vfat_get_sectors(((volume_size_sect / sect_per_clust * 4 * 2 + 1 ) / SECTOR_SIZE) + backup_boot_sector * 2);
++	int reserved_sect = default_reserved_sect;
++	
+ 	if ((off_t)(volume_size_sect - reserved_sect) < 4)
+ 		bb_error_msg_and_die("the image is too small for FAT32");
+ 	sect_per_fat = 1;
+@@ -437,6 +480,7 @@ int mkfs_vfat_main(int argc UNUSED_PARAM
+ 	}
+  found_total_clust:
+ 
++	reserved_sect = default_reserved_sect - NUM_FATS * sect_per_fat;
+ 	//
+ 	// Print info
+ 	//
+@@ -578,7 +622,7 @@ int mkfs_vfat_main(int argc UNUSED_PARAM
+ 		start_data_sector = (reserved_sect + NUM_FATS * sect_per_fat) * (bytes_per_sect / SECTOR_SIZE);
+ 		start_data_block = (start_data_sector + SECTORS_PER_BLOCK - 1) / SECTORS_PER_BLOCK;
+ 
+-		bb_error_msg("searching for bad blocks");
++		bb_info_msg("searching for bad blocks ");
+ 		currently_testing = 0;
+ 		try = TEST_BUFFER_BLOCKS;
+ 		while (currently_testing < volume_size_blocks) {
+@@ -616,13 +660,14 @@ int mkfs_vfat_main(int argc UNUSED_PARAM
+ 		}
+ 		free(blkbuf);
+ 		if (badblocks)
+-			bb_error_msg("%d bad block(s)", badblocks);
++			bb_info_msg("%d bad block(s)", badblocks);
+ 	}
+ #endif
+-
++	
+ 	// cleanup
+ 	if (ENABLE_FEATURE_CLEAN_UP) {
+ 		free(buf);
++		mkfs_reread_partition_table(dev);
+ 		close(dev);
+ 	}
+ 
