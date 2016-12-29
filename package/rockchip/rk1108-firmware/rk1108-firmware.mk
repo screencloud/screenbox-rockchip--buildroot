@@ -7,6 +7,13 @@ RK1108_FIRMWARE_LIBS+=package/rockchip/rk1108-firmware/dsp/lib/libdpp.so
 RK1108_FIRMWARE_INITSCRIPT+=package/rockchip/rk1108-firmware/dsp/S11dsp
 RK1108_STAGING_LIBS+=package/rockchip/rk1108-firmware/dsp/lib/libdpp.so
 RK1108_STAGING_INCLUDE_DIR+=package/rockchip/rk1108-firmware/dsp/include/dsp
+
+RK1108_FIRMWARE_LIBS+=package/rockchip/rk1108-firmware/libcamerahal/lib/libcam_hal.so
+RK1108_STAGING_LIBS+=package/rockchip/rk1108-firmware/libcamerahal/lib/libcam_hal.so
+RK1108_STAGING_INCLUDE_DIR+=package/rockchip/rk1108-firmware/libcamerahal/include/shared_ptr.h
+RK1108_STAGING_INCLUDE_DIR+=package/rockchip/rk1108-firmware/libcamerahal/include/CameraHal
+RK1108_STAGING_INCLUDE_DIR+=package/rockchip/rk1108-firmware/libcamerahal/include/ebase
+RK1108_STAGING_INCLUDE_DIR+=package/rockchip/rk1108-firmware/libcamerahal/include/oslayer
 endif
 
 ifneq ($(RK1108_FIRMWARE_FILES)$(RK1108_FIRMWARE_LIBS)$(RK1108_FIRMWARE_INITSCRIPT),)
