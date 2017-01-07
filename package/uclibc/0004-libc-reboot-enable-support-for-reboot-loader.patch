@@ -1,0 +1,32 @@
+From 92dd1739c01945afd64a4568f59aaff7890663c7 Mon Sep 17 00:00:00 2001
+From: Cody Xie <xkd@rock-chips.com>
+Date: Sat, 7 Jan 2017 16:59:29 +0800
+Subject: [PATCH] libc:reboot: enable support for reboot loader.
+
+Signed-off-by: Cody Xie <xkd@rock-chips.com>
+---
+ libc/sysdeps/linux/common/reboot.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/libc/sysdeps/linux/common/reboot.c b/libc/sysdeps/linux/common/reboot.c
+index ec271b1..989875c 100644
+--- a/libc/sysdeps/linux/common/reboot.c
++++ b/libc/sysdeps/linux/common/reboot.c
+@@ -10,8 +10,12 @@
+ #include <sys/syscall.h>
+ #include <sys/reboot.h>
+ #define __NR__reboot __NR_reboot
+-static __inline__ _syscall3(int, _reboot, int, magic, int, magic2, int, flag)
++#define	LINUX_REBOOT_CMD	0xa1b2c3d4
++static __inline__ _syscall4(int, _reboot, int, magic, int, magic2, int, flag, void *, arg)
+ int reboot(int flag)
+ {
+-	return (_reboot((int) 0xfee1dead, 672274793, flag));
++	if (flag == LINUX_REBOOT_CMD)
++		return (_reboot((int) 0xfee1dead, 672274793, flag, "loader"));
++	else
++		return (_reboot((int) 0xfee1dead, 672274793, flag, ""));
+ }
+-- 
+2.7.4
+
