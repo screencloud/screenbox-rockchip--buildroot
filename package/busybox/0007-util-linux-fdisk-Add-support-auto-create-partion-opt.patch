@@ -1,0 +1,175 @@
+From e0fe54202851e59f81f1aecc4d5c37a0c7fb74be Mon Sep 17 00:00:00 2001
+From: Cody Xie <xkd@rock-chips.com>
+Date: Sat, 7 Jan 2017 11:07:14 +0800
+Subject: [PATCH 7/9] util-linux:fdisk: Add support auto create partion option.
+
+Signed-off-by: huaping.liao <huaping.liao@rock-chips.com>
+Signed-off-by: Cody Xie <xkd@rock-chips.com>
+---
+ util-linux/fdisk.c | 92 +++++++++++++++++++++++++++++++++++++++---------------
+ 1 file changed, 66 insertions(+), 26 deletions(-)
+
+diff --git a/util-linux/fdisk.c b/util-linux/fdisk.c
+index f49ce95..5813c99 100644
+--- a/util-linux/fdisk.c
++++ b/util-linux/fdisk.c
+@@ -80,7 +80,8 @@ enum {
+ 	OPT_l = 1 << 3,
+ 	OPT_S = 1 << 4,
+ 	OPT_u = 1 << 5,
+-	OPT_s = (1 << 6) * ENABLE_FEATURE_FDISK_BLKSIZE,
++	OPT_t = 1 << 6,
++	OPT_s = (1 << 7) * ENABLE_FEATURE_FDISK_BLKSIZE,
+ };
+ 
+ 
+@@ -370,6 +371,11 @@ struct globals {
+ 	/* Partition tables */
+ 	struct pte ptes[MAXIMUM_PARTS];
+ };
++
++/******************************************************/
++int auto_creat_parttition = 0;
++/******************************************************/
++
+ #define G (*ptr_to_globals)
+ #define line_ptr             (G.line_ptr            )
+ #define disk_device          (G.disk_device         )
+@@ -847,6 +853,9 @@ menu(void)
+ #if ENABLE_FEATURE_FDISK_ADVANCED
+ 		puts("x\textra functionality (experts only)");
+ #endif
++		/*********************************************/
++		puts("z\t auto creat a partition");
++		/*********************************************/
+ 	} else if (LABEL_IS_SGI) {
+ 		puts("a\tselect bootable partition");    /* sgi flavour */
+ 		puts("b\tedit bootfile entry");          /* sgi */
+@@ -1810,8 +1819,11 @@ change_sysid(void)
+ 		return;
+ 	}
+ 	while (1) {
+-		sys = read_hex(get_sys_types());
+-
++		if(auto_creat_parttition)
++			sys = 0x0c;
++		else{
++			sys = read_hex(get_sys_types());
++		}
+ 		if (!sys && !LABEL_IS_SGI && !LABEL_IS_SUN) {
+ 			puts("Type 0 means free space to many systems\n"
+ 				"(but not to Linux). Having partitions of\n"
+@@ -2390,7 +2402,14 @@ add_partition(int n, int sys)
+ 			sector_t saved_start;
+ 
+ 			saved_start = start;
+-			start = read_int(cround(saved_start), cround(saved_start), cround(limit), 0, mesg);
++/***********************************************************************************/
++			if (auto_creat_parttition) {
++				start = cround(saved_start);
++				printf ("Using default value %u\n", cround(saved_start));
++			} else {
++				start = read_int(cround(saved_start), cround(saved_start), cround(limit), 0, mesg);
++			}
++/***********************************************************************************/
+ 			if (display_in_cyl_units) {
+ 				start = (start - 1) * units_per_sector;
+ 				if (start < saved_start)
+@@ -2430,7 +2449,14 @@ add_partition(int n, int sys)
+ 		snprintf(mesg, sizeof(mesg),
+ 			 "Last %s or +size or +sizeM or +sizeK",
+ 			 str_units(SINGULAR));
+-		stop = read_int(cround(start), cround(limit), cround(limit), cround(start), mesg);
++/**********************************************************************************/
++		if (auto_creat_parttition) {
++			stop = cround(limit);
++			printf ("Using default value %u\n", cround(limit));
++		} else {
++			stop = read_int(cround(start), cround(limit), cround(limit), cround(start), mesg);
++		}
++/**********************************************************************************/
+ 		if (display_in_cyl_units) {
+ 			stop = stop * units_per_sector - 1;
+ 			if (stop >limit)
+@@ -2518,26 +2544,30 @@ new_partition(void)
+ 			"   p   primary partition (1-4)\n",
+ 			(extended_offset ?
+ 			"l   logical (5 or over)" : "e   extended"));
+-		while (1) {
+-			c = read_nonempty(line);
+-			if ((c | 0x20) == 'p') {
+-				i = get_nonexisting_partition(0, 4);
+-				if (i >= 0)
+-					add_partition(i, LINUX_NATIVE);
+-				return;
+-			}
+-			if (c == 'l' && extended_offset) {
+-				add_logical();
+-				return;
+-			}
+-			if (c == 'e' && !extended_offset) {
+-				i = get_nonexisting_partition(0, 4);
+-				if (i >= 0)
+-					add_partition(i, EXTENDED);
+-				return;
++		if (auto_creat_parttition) {
++			add_partition(0, LINUX_NATIVE);
++		} else {
++			while (1) {
++				c = read_nonempty(line);
++				if ((c | 0x20) == 'p') {
++					i = get_nonexisting_partition(0, 4);
++					if (i >= 0)
++						add_partition(i, LINUX_NATIVE);
++					return;
++				}
++				if (c == 'l' && extended_offset) {
++					add_logical();
++					return;
++				}
++				if (c == 'e' && !extended_offset) {
++					i = get_nonexisting_partition(0, 4);
++					if (i >= 0)
++						add_partition(i, EXTENDED);
++					return;
++				}
++				printf("Invalid partition number "
++						"for type '%c'\n", c);
+ 			}
+-			printf("Invalid partition number "
+-					 "for type '%c'\n", c);
+ 		}
+ 	}
+ }
+@@ -2920,9 +2950,10 @@ int fdisk_main(int argc UNUSED_PARAM, char **argv)
+ 	close_dev_fd(); /* needed: fd 3 must not stay closed */
+ 
+ 	opt_complementary = "b+:C+:H+:S+"; /* numeric params */
+-	opt = getopt32(argv, "b:C:H:lS:u" IF_FEATURE_FDISK_BLKSIZE("s"),
+-				&sector_size, &user_cylinders, &user_heads, &user_sectors);
++	opt = getopt32(argv, "b:C:H:lS:u:t" IF_FEATURE_FDISK_BLKSIZE("s"),
++				&sector_size, &user_cylinders, &user_heads, &user_sectors, &auto_creat_parttition);
+ 	argv += optind;
++
+ 	if (opt & OPT_b) {
+ 		/* Ugly: this sector size is really per device,
+ 		 * so cannot be combined with multiple disks,
+@@ -3001,6 +3032,15 @@ int fdisk_main(int argc UNUSED_PARAM, char **argv)
+ 		/* If we return we may want to make an empty DOS label? */
+ 	}
+ 
++	if (opt & OPT_t) {
++		auto_creat_parttition = 1;
++		sector_offset = 8192;
++		new_partition();
++		change_sysid();
++		write_table();
++		return 0;
++	}
++
+ 	while (1) {
+ 		int c;
+ 		bb_putchar('\n');
+-- 
+2.7.4
+
