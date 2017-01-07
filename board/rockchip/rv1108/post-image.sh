@@ -7,8 +7,8 @@ FIRMWAREMERGER=${HOST_DIR}/usr/bin/firmwareMerger
 DTB=$2
 
 cp ${BOARD_DIR}/setting.ini ${BINARIES_DIR}/
-cp ${BOARD_DIR}/rk1108ddr.bin ${BINARIES_DIR}/
-cp ${BOARD_DIR}/rk1108loader.bin ${BINARIES_DIR}/
+cp ${BOARD_DIR}/rv1108ddr.bin ${BINARIES_DIR}/
+cp ${BOARD_DIR}/rv1108loader.bin ${BINARIES_DIR}/
 cp ${BOARD_DIR}/kernelimage $KERNELIMAGE
 cp ${BOARD_DIR}/firmwareMerger $FIRMWAREMERGER
 
