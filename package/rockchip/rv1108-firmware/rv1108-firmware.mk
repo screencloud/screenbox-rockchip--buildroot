@@ -3,7 +3,6 @@
 
 ifeq ($(BR2_PACKAGE_RV1108_FIRMWARE),y)
 RV1108_FIRMWARE_FILES+=package/rockchip/rv1108-firmware/dsp/firmware/rkdsp.bin
-RV1108_FIRMWARE_INITSCRIPT+=package/rockchip/rv1108-firmware/dsp/S11dsp
 endif
 
 ifneq ($(RV1108_FIRMWARE_FILES)$(RV1108_FIRMWARE_LIBS)$(RV1108_FIRMWARE_INITSCRIPT),)
