@@ -1,0 +1,77 @@
+From 78dc6a9a024169050c5135bb7289cfe080dcb1f3 Mon Sep 17 00:00:00 2001
+From: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+Date: Mon, 13 Feb 2017 16:35:00 +0200
+Subject: [PATCH] clients/weston-info: print unknown formats better
+
+Don't just dump the raw 32-bit values, try to interpret it as a DRM
+fourcc too.
+
+This prints properly the formats YUYV, NV12 and YU12 supported by
+Weston.
+
+Signed-off-by: Pekka Paalanen <pekka.paalanen@collabora.co.uk>
+Reviewed-by: Eric Engestrom <eric.engestrom@imgtec.com>
+---
+ clients/weston-info.c | 29 ++++++++++++++++++++++++++++-
+ 1 file changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/clients/weston-info.c b/clients/weston-info.c
+index 712346a..c07134d 100644
+--- a/clients/weston-info.c
++++ b/clients/weston-info.c
+@@ -30,6 +30,8 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <time.h>
++#include <assert.h>
++#include <ctype.h>
+ 
+ #include <wayland-client.h>
+ 
+@@ -240,9 +242,33 @@ print_output_info(void *data)
+ 	}
+ }
+ 
++static char
++bits2graph(uint32_t value, unsigned bitoffset)
++{
++	int c = (value >> bitoffset) & 0xff;
++
++	if (isgraph(c) || isspace(c))
++		return c;
++
++	return '?';
++}
++
++static void
++fourcc2str(uint32_t format, char *str, int len)
++{
++	int i;
++
++	assert(len >= 5);
++
++	for (i = 0; i < 4; i++)
++		str[i] = bits2graph(format, i * 8);
++	str[i] = '\0';
++}
++
+ static void
+ print_shm_info(void *data)
+ {
++	char str[5];
+ 	struct shm_info *shm = data;
+ 	struct shm_format *format;
+ 
+@@ -262,7 +288,8 @@ print_shm_info(void *data)
+ 			printf(" RGB565");
+ 			break;
+ 		default:
+-			printf(" unknown(%08x)", format->format);
++			fourcc2str(format->format, str, sizeof(str));
++			printf(" '%s'(0x%08x)", str, format->format);
+ 			break;
+ 		}
+ 
+-- 
+1.9.1
+
