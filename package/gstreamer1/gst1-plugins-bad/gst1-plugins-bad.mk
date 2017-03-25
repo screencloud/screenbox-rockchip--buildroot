@@ -4,9 +4,9 @@
 #
 ################################################################################
 
-GST1_PLUGINS_BAD_VERSION = 1.8.2
+GST1_PLUGINS_BAD_VERSION = 1.10.0
 GST1_PLUGINS_BAD_SOURCE = gst-plugins-bad-$(GST1_PLUGINS_BAD_VERSION).tar.xz
-GST1_PLUGINS_BAD_SITE = http://gstreamer.freedesktop.org/src/gst-plugins-bad
+GST1_PLUGINS_BAD_SITE = https://gstreamer.freedesktop.org/src/gst-plugins-bad
 GST1_PLUGINS_BAD_INSTALL_STAGING = YES
 GST1_PLUGINS_BAD_LICENSE_FILES = COPYING COPYING.LIB
 # Unknown and GPL licensed plugins will append to GST1_PLUGINS_BAD_LICENSE if
@@ -122,7 +122,7 @@ endif
 
 ifneq ($(BR2_PACKAGE_GST1_PLUGINS_BAD_LIB_OPENGL_WAYLAND)$(BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_WAYLAND),)
 GST1_PLUGINS_BAD_CONF_OPTS += --enable-wayland
-GST1_PLUGINS_BAD_DEPENDENCIES += wayland
+GST1_PLUGINS_BAD_DEPENDENCIES += wayland wayland-protocols weston
 else
 GST1_PLUGINS_BAD_CONF_OPTS += --disable-wayland
 endif
