@@ -1,0 +1,163 @@
+From patchwork Wed Aug 10 10:46:24 2016
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [LIBDRM,2/2] Add support for crtc_id in page flip events
+From: Maarten Lankhorst <maarten.lankhorst@linux.intel.com>
+X-Patchwork-Id: 9272897
+Message-Id: <1470825984-9441-3-git-send-email-maarten.lankhorst@linux.intel.com>
+To: dri-devel@lists.freedesktop.org
+Cc: "Cc : Daniel Stone" <daniels@collabora.com>
+Date: Wed, 10 Aug 2016 12:46:24 +0200
+
+Add a page_flip_handler2 member to drmEventContext and bump
+DRM_EVENT_CONTEXT.
+
+To make sure that the new api works as intended, modetest is
+changed to use it.
+
+Signed-off-by: Maarten Lankhorst <maarten.lankhorst@linux.intel.com>
+Cc: David Airlie <airlied@linux.ie>
+Cc: Daniel Stone <daniels@collabora.com>
+---
+ include/drm/drm.h         |  2 +-
+ tests/modetest/modetest.c | 20 ++++++++++++++++++--
+ xf86drm.h                 | 16 +++++++++++++++-
+ xf86drmMode.c             | 23 ++++++++++++++++-------
+ 4 files changed, 50 insertions(+), 11 deletions(-)
+
+diff --git a/include/drm/drm.h b/include/drm/drm.h
+index d7874c6f0d47..6da7f2a1f40b 100644
+--- a/include/drm/drm.h
++++ b/include/drm/drm.h
+@@ -844,7 +844,7 @@ struct drm_event_vblank {
+ 	__u32 tv_sec;
+ 	__u32 tv_usec;
+ 	__u32 sequence;
+-	__u32 reserved;
++	__u32 crtc_id; /* 0 on older kernels that do not support this */
+ };
+ 
+ /* typedef area */
+diff --git a/tests/modetest/modetest.c b/tests/modetest/modetest.c
+index 21d543842c95..56ee7f2adc83 100644
+--- a/tests/modetest/modetest.c
++++ b/tests/modetest/modetest.c
+@@ -913,8 +913,8 @@ static void set_property(struct device *dev, struct property_arg *p)
+ /* -------------------------------------------------------------------------- */
+ 
+ static void
+-page_flip_handler(int fd, unsigned int frame,
+-		  unsigned int sec, unsigned int usec, void *data)
++page_flip_handler2(int fd, unsigned int crtc_id, unsigned int frame,
++		   unsigned int sec, unsigned int usec, void *data)
+ {
+ 	struct pipe_arg *pipe;
+ 	unsigned int new_fb_id;
+@@ -927,6 +927,8 @@ page_flip_handler(int fd, unsigned int frame,
+ 	else
+ 		new_fb_id = pipe->fb_id[0];
+ 
++	assert(crtc_id == pipe->crtc->crtc->crtc_id);
++
+ 	drmModePageFlip(fd, pipe->crtc->crtc->crtc_id, new_fb_id,
+ 			DRM_MODE_PAGE_FLIP_EVENT, pipe);
+ 	pipe->current_fb_id = new_fb_id;
+@@ -941,6 +943,19 @@ page_flip_handler(int fd, unsigned int frame,
+ 	}
+ }
+ 
++static void
++page_flip_handler(int fd, unsigned int frame,
++		  unsigned int sec, unsigned int usec, void *data)
++{
++	struct pipe_arg *pipe = data;
++	static int once = 0;
++
++	if (!once++)
++		fprintf(stderr, "kernel doesn't pass crtc_id, or using older libdrm\n");
++
++	page_flip_handler2(fd, pipe->crtc->crtc->crtc_id, frame, sec, usec, data);
++}
++
+ static bool format_support(const drmModePlanePtr ovr, uint32_t fmt)
+ {
+ 	unsigned int i;
+@@ -1233,6 +1248,7 @@ static void test_page_flip(struct device *dev, struct pipe_arg *pipes, unsigned
+ 	evctx.version = DRM_EVENT_CONTEXT_VERSION;
+ 	evctx.vblank_handler = NULL;
+ 	evctx.page_flip_handler = page_flip_handler;
++	evctx.page_flip_handler2 = page_flip_handler2;
+ 
+ 	while (1) {
+ #if 0
+diff --git a/xf86drm.h b/xf86drm.h
+index 481d882aa017..556390cdec47 100644
+--- a/xf86drm.h
++++ b/xf86drm.h
+@@ -728,7 +728,7 @@ extern void drmMsg(const char *format, ...) DRM_PRINTFLIKE(1, 2);
+ extern int drmSetMaster(int fd);
+ extern int drmDropMaster(int fd);
+ 
+-#define DRM_EVENT_CONTEXT_VERSION 2
++#define DRM_EVENT_CONTEXT_VERSION 3
+ 
+ typedef struct _drmEventContext {
+ 
+@@ -748,6 +748,20 @@ typedef struct _drmEventContext {
+ 				  unsigned int tv_usec,
+ 				  void *user_data);
+ 
++	/*
++	 * Page flip handler used when kernel supports passing crtc_id
++	 * to userspace.
++	 *
++	 * If the kernel doesn't support passing crtc_id, the old
++	 * page_flip_handler() member will be called if set,
++	 * if it's NULL, this function will be called with crtc_id set to 0.
++	 */
++	void (*page_flip_handler2)(int fd,
++				   unsigned int crtc_id,
++				   unsigned int sequence,
++				   unsigned int tv_sec,
++				   unsigned int tv_usec,
++				   void *user_data);
+ } drmEventContext, *drmEventContextPtr;
+ 
+ extern int drmHandleEvent(int fd, drmEventContextPtr evctx);
+diff --git a/xf86drmMode.c b/xf86drmMode.c
+index f7b59484153e..62bfd69b1d14 100644
+--- a/xf86drmMode.c
++++ b/xf86drmMode.c
+@@ -902,15 +902,24 @@ int drmHandleEvent(int fd, drmEventContextPtr evctx)
+ 					      U642VOID (vblank->user_data));
+ 			break;
+ 		case DRM_EVENT_FLIP_COMPLETE:
+-			if (evctx->version < 2 ||
+-			    evctx->page_flip_handler == NULL)
++			if (evctx->version < 2)
+ 				break;
+ 			vblank = (struct drm_event_vblank *) e;
+-			evctx->page_flip_handler(fd,
+-						 vblank->sequence,
+-						 vblank->tv_sec,
+-						 vblank->tv_usec,
+-						 U642VOID (vblank->user_data));
++
++			if (evctx->version >= 3 && evctx->page_flip_handler2 &&
++			    (vblank->crtc_id || !evctx->page_flip_handler))
++				evctx->page_flip_handler2(fd,
++							  vblank->crtc_id,
++							  vblank->sequence,
++							  vblank->tv_sec,
++							  vblank->tv_usec,
++							  U642VOID (vblank->user_data));
++			else if (evctx->page_flip_handler)
++				evctx->page_flip_handler(fd,
++							 vblank->sequence,
++							 vblank->tv_sec,
++							 vblank->tv_usec,
++							 U642VOID (vblank->user_data));
+ 			break;
+ 		default:
+ 			break;
