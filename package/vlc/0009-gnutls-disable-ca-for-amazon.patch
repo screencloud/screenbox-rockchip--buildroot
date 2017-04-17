@@ -1,0 +1,35 @@
+From da41e651984303c9eea2f3eb3cc2b6aad375f113 Mon Sep 17 00:00:00 2001
+From: zyh <zyh@rock-chips.com>
+Date: Mon, 17 Apr 2017 09:38:58 +0800
+Subject: [PATCH] gnutls:disable ca for amazon
+
+Signed-off-by: zyh <zyh@rock-chips.com>
+---
+ modules/misc/gnutls.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/modules/misc/gnutls.c b/modules/misc/gnutls.c
+index ddde9fe..b385a17 100644
+--- a/modules/misc/gnutls.c
++++ b/modules/misc/gnutls.c
+@@ -372,7 +372,7 @@ static int gnutls_HandshakeAndValidate (vlc_tls_t *session, const char *host,
+ 
+     /* certificates chain verification */
+     unsigned status;
+-
++#if 0
+     val = gnutls_certificate_verify_peers2 (sys->session, &status);
+     if (val)
+     {
+@@ -389,7 +389,7 @@ static int gnutls_HandshakeAndValidate (vlc_tls_t *session, const char *host,
+         if (status & ~(GNUTLS_CERT_INVALID|GNUTLS_CERT_SIGNER_NOT_FOUND))
+             return -1;
+     }
+-
++#endif
+     if (host == NULL)
+         return status ? -1 : 0;
+ 
+-- 
+1.9.1
+
