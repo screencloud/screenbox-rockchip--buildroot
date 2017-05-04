@@ -76,6 +76,8 @@ else
 BLUEZ5_UTILS_CONF_OPTS += --disable-systemd
 endif
 
+BLUEZ5_UTILS_CONF_OPTS += --localstatedir=/data
+
 define BLUEZ5_UTILS_INSTALL_INIT_SYSTEMD
 	mkdir -p $(TARGET_DIR)/etc/systemd/system/bluetooth.target.wants
 	ln -fs ../../../../usr/lib/systemd/system/bluetooth.service \
