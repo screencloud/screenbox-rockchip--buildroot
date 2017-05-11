@@ -76,7 +76,9 @@ else
 BLUEZ5_UTILS_CONF_OPTS += --disable-systemd
 endif
 
-BLUEZ5_UTILS_CONF_OPTS += --localstatedir=/data
+ifeq ($(BR2_PACKAGE_RK3036_ECHO),y)
+BLUEZ5_UTILS_CONF_OPTS += --localstatedir=/data/cfg
+endif
 
 define BLUEZ5_UTILS_INSTALL_INIT_SYSTEMD
 	mkdir -p $(TARGET_DIR)/etc/systemd/system/bluetooth.target.wants
