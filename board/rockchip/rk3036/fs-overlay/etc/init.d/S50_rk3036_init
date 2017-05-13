@@ -3,10 +3,62 @@
 # Insmod
 #
 
+auto_mount() {
+	local cmdline="`cat /proc/cmdline`"
+	local data_type="${cmdline##*dataType=}"
+	local data_type="${data_type%% *}"
+	local cfg_type="${cmdline##*cfgType=}"
+	local cfg_type="${cfg_type%% *}"
+
+	case "${cfg_type}" in
+		ext4)
+			;;
+		*)
+			local cfg_type="ext4"
+			;;
+	esac
+
+	case "${data_type}" in
+		squashfs|ext4)
+			;;
+		*)
+			local data_type="squashfs"
+			;;
+	esac
+
+	local ftmp="${cmdline##*mtdparts=rk29xxnand:}"
+	local ftmp="${ftmp%% *}"
+	local fno=0
+	local fdir=/dev/PartNo
+	mkdir $fdir
+	for i in ${ftmp//,/ }
+	do
+		i=${i##*\(}
+		i=${i%*\)}
+		local fno=$(( fno + 1 ))
+		if [ "${i}" == "cfg" -o "${i}" == "data" ];then
+			ln -sf "/dev/mmcblk0p${fno}" ${fdir}/${i}
+		fi
+	done
+
+	if [ "${data_type}" == "ext4" ];then
+		e2fsck -fy ${fdir}/data
+		resize2fs ${fdir}/data
+	fi
+	if [ "${cfg_type}" == "ext4" ];then
+		e2fsck -fy ${fdir}/cfg
+		resize2fs ${fdir}/cfg
+	fi
+
+	mount -t ${data_type} ${fdir}/data /data
+	mount -t ${cfg_type} ${fdir}/cfg /data/cfg
+}
+
 case "$1" in
   start)
         printf "insmod drmboot service...\n"
         insmod /usr/lib/modules/drmboot.ko
+        auto_mount
         ;;
   stop)
         printf "stop finished\n"
