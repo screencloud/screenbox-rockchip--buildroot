@@ -1,0 +1,41 @@
+From f28d0ea1649d39fe05b072cf633a45a23b62ac55 Mon Sep 17 00:00:00 2001
+From: Randy Li <randy.li@rock-chips.com>
+Date: Wed, 10 May 2017 14:47:30 +0800
+Subject: [PATCH] buildroot: allow select the memory allocator
+
+Change-Id: Ifcd9f481e430806f1022026fb995446c3e19c465
+Signed-off-by: Randy Li <randy.li@rock-chips.com>
+---
+ osal/linux/os_allocator.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/osal/linux/os_allocator.c b/osal/linux/os_allocator.c
+index 6530255..f115843 100644
+--- a/osal/linux/os_allocator.c
++++ b/osal/linux/os_allocator.c
+@@ -18,7 +18,9 @@
+ #include "mpp_log.h"
+ 
+ #include "allocator_std.h"
++#ifdef HAVE_DRM
+ #include "allocator_drm.h"
++#endif
+ #include "allocator_ion.h"
+ 
+ /*
+@@ -35,8 +37,12 @@ MPP_RET os_allocator_get(os_allocator *api, MppBufferType type)
+     } break;
+     case MPP_BUFFER_TYPE_ION : {
+ #ifdef RKPLATFORM
++#ifdef HAVE_DRM
+         *api = allocator_drm;
+ #else
++        *api = allocator_ion;
++#endif
++#else
+         *api = allocator_std;
+ #endif
+     } break;
+-- 
+2.9.4
+

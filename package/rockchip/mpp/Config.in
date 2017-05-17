@@ -1,8 +1,9 @@
-config BR2_PACKAGE_MPP
+menuconfig BR2_PACKAGE_MPP
 	bool "MPP(Multimedia Processing Platform)"
+	select BR2_PACKAGE_LIBDRM
 
-config BR2_PACKAGE_MPP_TEST
-	bool "MPP test bin"
-	depends on BR2_PACKAGE_MPP
+if BR2_PACKAGE_MPP
+config BR2_PACKAGE_MPP_ALLOCATOR_DRM
+	bool "Rockchip MPP use drm allocator"
 
-
+endif
