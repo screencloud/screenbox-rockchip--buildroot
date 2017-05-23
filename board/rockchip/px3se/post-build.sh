@@ -23,4 +23,3 @@ rm $TARGET_DIR/usr/bin/$filename
 fi
 done
 cp -d $BOARD_DIR/bin/* $TARGET_DIR/usr/bin/
-
