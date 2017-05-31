@@ -4,6 +4,9 @@
 ifeq ($(BR2_PACKAGE_RK3036_ECHO),y)
 ADBD_SITE = $(TOPDIR)/../external/adb
 ADBD_SITE_METHOD = local
+else ifeq ($(BR2_PACKAGE_RK312X),y)
+ADBD_SITE = $(TOPDIR)/../external/adb
+ADBD_SITE_METHOD = local
 else
 ADBD_SITE = $(call qstrip, ssh://git@10.10.10.78:2222/argus/externals/adb.git)
 ADBD_SITE_METHOD = git
