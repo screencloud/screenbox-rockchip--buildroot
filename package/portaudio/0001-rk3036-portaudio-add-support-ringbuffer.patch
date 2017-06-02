@@ -1,0 +1,35 @@
+From 8fdaae00cdb946248a6369fd8a7073f6202dcdb0 Mon Sep 17 00:00:00 2001
+From: zyh <zyh@rock-chips.com>
+Date: Fri, 2 Jun 2017 14:44:26 +0800
+Subject: [PATCH] rk3036: portaudio: add support ringbuffer
+
+Signed-off-by: zyh <zyh@rock-chips.com>
+---
+ configure | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/configure b/configure
+index 13846d8..93d303c 100755
+--- a/configure
++++ b/configure
+@@ -16078,7 +16078,7 @@ fi
+ 
+                         THREAD_CFLAGS="-D_REENTRANT"
+ 
+-        OTHER_OBJS="pa_sgi/pa_sgi.o src/os/unix/pa_unix_hostapis.o src/os/unix/pa_unix_util.o"
++        OTHER_OBJS="pa_sgi/pa_sgi.o src/os/unix/pa_unix_hostapis.o src/os/unix/pa_unix_util.o src/common/pa_ringbuffer.o"
+ 
+                         LIBS="-lm -ldmedia -laudio -lpthread"
+         PADLL="libportaudio.so"
+@@ -16184,7 +16184,7 @@ fi
+               ;;
+         esac
+ 
+-        OTHER_OBJS="$OTHER_OBJS src/os/unix/pa_unix_hostapis.o src/os/unix/pa_unix_util.o"
++        OTHER_OBJS="$OTHER_OBJS src/os/unix/pa_unix_hostapis.o src/os/unix/pa_unix_util.o src/common/pa_ringbuffer.o"
+ esac
+ CFLAGS="$CFLAGS $THREAD_CFLAGS"
+ 
+-- 
+1.9.1
+

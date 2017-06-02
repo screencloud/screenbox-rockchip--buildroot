@@ -19,5 +19,6 @@ PORTAUDIO_CONF_OPTS = \
 	$(if $(BR2_PACKAGE_PORTAUDIO_ALSA),--with-alsa,--without-alsa) \
 	$(if $(BR2_PACKAGE_PORTAUDIO_OSS),--with-oss,--without-oss) \
 	$(if $(BR2_PACKAGE_PORTAUDIO_CXX),--enable-cxx,--disable-cxx)
-
+PORTAUDIO_CONF_OPTS += \
+	--enable-static
 $(eval $(autotools-package))
