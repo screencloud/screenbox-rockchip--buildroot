@@ -1,0 +1,45 @@
+From fc3cf8879d6e4a8da98838b0b82d6c7137ea4b46 Mon Sep 17 00:00:00 2001
+From: Binyuan Lan <lby@rock-chips.com>
+Date: Sat, 27 May 2017 11:46:52 +0800
+Subject: [PATCH] qt5base: eglfs_kms set framebuffer support transparent
+
+Signed-off-by: Binyuan Lan <lby@rock-chips.com>
+---
+ .../eglfs/deviceintegration/eglfs_kms/qeglfskmsscreen.cpp         | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/src/plugins/platforms/eglfs/deviceintegration/eglfs_kms/qeglfskmsscreen.cpp b/src/plugins/platforms/eglfs/deviceintegration/eglfs_kms/qeglfskmsscreen.cpp
+index 048f543..6abff5b 100644
+--- a/src/plugins/platforms/eglfs/deviceintegration/eglfs_kms/qeglfskmsscreen.cpp
++++ b/src/plugins/platforms/eglfs/deviceintegration/eglfs_kms/qeglfskmsscreen.cpp
+@@ -90,13 +90,14 @@ QEglFSKmsScreen::FrameBuffer *QEglFSKmsScreen::framebufferForBufferObject(gbm_bo
+ 
+     QScopedPointer<FrameBuffer> fb(new FrameBuffer);
+ 
+-    int ret = drmModeAddFB(m_device->fd(), width, height, 24, 32,
++    int ret = drmModeAddFB(m_device->fd(), width, height, 32, 32,
+                            stride, handle, &fb->fb);
+ 
+     if (ret) {
+         qWarning("Failed to create KMS FB!");
+         return Q_NULLPTR;
+-    }
++    } else
++	qWarning("eglfs >> sucess to create KMS FB!");
+ 
+     gbm_bo_set_user_data(bo, fb.data(), bufferDestroyedHandler);
+     return fb.take();
+@@ -209,8 +210,9 @@ gbm_surface *QEglFSKmsScreen::createSurface()
+         m_gbm_surface = gbm_surface_create(m_device->device(),
+                                            geometry().width(),
+                                            geometry().height(),
+-                                           GBM_FORMAT_XRGB8888,
++                                           GBM_FORMAT_ARGB8888,
+                                            GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
++	qWarning("eglfs >> createSurface GBM_FORMAT_ARGB8888");
+     }
+     return m_gbm_surface;
+ }
+-- 
+1.9.1
+
