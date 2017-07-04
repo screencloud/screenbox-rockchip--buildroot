@@ -31,16 +31,16 @@ auto_mount() {
 
 	if [ "${flash_type}" == "/dev/rknand_boot" ];then
 		local fdir="/dev/rknand_"
-		if [ "${data_type}" == "ext4" ];then
-			e2fsck -fy ${fdir}data
-			resize2fs ${fdir}data
-		fi
+		# if [ "${data_type}" == "ext4" ];then
+			# e2fsck -fy ${fdir}data
+			# resize2fs ${fdir}data
+		# fi
 		if [ "${cfg_type}" == "ext4" ];then
 			e2fsck -fy ${fdir}cfg
 			resize2fs ${fdir}cfg
 		fi
 
-		mount -t ${data_type} ${fdir}data /data
+		# mount -t ${data_type} ${fdir}data /data
 		mount -t ${cfg_type} ${fdir}cfg /data/cfg
 	else
 
@@ -56,21 +56,19 @@ auto_mount() {
 			i=${i##*\(}
 			i=${i%*\)}
 			local fno=$(( fno + 1 ))
-			# if [ "${i}" == "cfg" -o "${i}" == "data" ];then
-				ln -sf "/dev/mmcblk0p${fno}" ${fdir}/${i}
-			# fi
+			ln -sf "/dev/mmcblk0p${fno}" ${fdir}/${i}
 		done
 
-		if [ "${data_type}" == "ext4" ];then
-			e2fsck -fy ${fdir}/data
-			resize2fs ${fdir}/data
-		fi
+		#if [ "${data_type}" == "ext4" ];then
+		#	e2fsck -fy ${fdir}/data
+		#	resize2fs ${fdir}/data
+		#fi
 		if [ "${cfg_type}" == "ext4" ];then
 			e2fsck -fy ${fdir}/cfg
 			resize2fs ${fdir}/cfg
 		fi
 
-		mount -t ${data_type} ${fdir}/data /data
+		#mount -t ${data_type} ${fdir}/data /data
 		mount -t ${cfg_type} ${fdir}/cfg /data/cfg
 	fi
 }
