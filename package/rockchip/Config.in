@@ -34,5 +34,6 @@ source "package/rockchip/mpp/Config.in"
 source "package/rockchip/adbd/Config.in"
 source "package/rockchip/gstreamer1-rockchip/Config.in"
 source "package/rockchip/wakeWordAgent/Config.in"
+source "package/rockchip/pcba/Config.in"
 
 endif
