@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-LIBCURL_VERSION = 7.50.1
+LIBCURL_VERSION = 7.54.0
 LIBCURL_SOURCE = curl-$(LIBCURL_VERSION).tar.bz2
 LIBCURL_SITE = http://curl.haxx.se/download
 LIBCURL_DEPENDENCIES = host-pkgconf \
@@ -61,6 +61,12 @@ LIBCURL_DEPENDENCIES += libssh2
 LIBCURL_CONF_OPTS += --with-libssh2
 else
 LIBCURL_CONF_OPTS += --without-libssh2
+endif
+
+# Configure curl to support http2
+ifeq ($(BR2_PACKAGE_LIBNGHTTP2),y)
+LIBCURL_DEPENDENCIES += libnghttp2
+LIBCURL_CONF_OPTS += --with-nghttp2=$(STAGING_DIR)/usr
 endif
 
 define LIBCURL_FIX_DOT_PC
