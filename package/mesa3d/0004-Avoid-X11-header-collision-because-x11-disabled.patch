@@ -1,0 +1,27 @@
+From b1c17ca78de92ddc2f7c16046bb0aca3b7d74033 Mon Sep 17 00:00:00 2001
+From: Binyuan Lan <lby@rock-chips.com>
+Date: Thu, 20 Jul 2017 22:06:20 +0800
+Subject: [PATCH] Avoid X11 header collision because x11 disabled
+
+Signed-off-by: Binyuan Lan <lby@rock-chips.com>
+---
+ include/EGL/eglplatform.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/include/EGL/eglplatform.h b/include/EGL/eglplatform.h
+index b376e64..5890b80 100644
+--- a/include/EGL/eglplatform.h
++++ b/include/EGL/eglplatform.h
+@@ -36,6 +36,9 @@
+ 
+ #include <KHR/khrplatform.h>
+ 
++/*Avoid X11 header collision because x11 disabled*/
++#define MESA_EGL_NO_X11_HEADERS
++
+ /* Macros used in EGL function prototype declarations.
+  *
+  * EGL functions should be prototyped as:
+-- 
+1.9.1
+
