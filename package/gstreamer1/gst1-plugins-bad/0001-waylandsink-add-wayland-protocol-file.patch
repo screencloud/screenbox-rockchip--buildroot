@@ -1,41 +1,26 @@
-From 7ff1a624114ed7822b0254dfbcfe432e9add855e Mon Sep 17 00:00:00 2001
+From 7a80cb308ff13f042545ca841b1aa4f7b8ab8c40 Mon Sep 17 00:00:00 2001
 From: Binyuan Lan <lby@rock-chips.com>
-Date: Thu, 23 Mar 2017 17:07:18 +0800
-Subject: [PATCH] gstwaylandsink: add dmabuf zero copy
+Date: Fri, 7 Jul 2017 15:29:23 +0800
+Subject: [PATCH 1/2] waylandsink: add wayland protocol file
 
 Signed-off-by: Binyuan Lan <lby@rock-chips.com>
 ---
- ext/wayland/Makefile.am                            |    4 +
  .../fullscreen-shell-unstable-v1-client-protocol.h |  483 ++++++
- ext/wayland/gstwaylandsink.c                       |  780 ++++++++-
  .../linux-dmabuf-unstable-v1-client-protocol.h     |  549 ++++++
+ ext/wayland/linux-dmabuf-unstable-v1-protocol.c    |   77 +
  ext/wayland/viewporter-client-protocol.h           |  408 +++++
  ext/wayland/viewporter-protocol.c                  |   64 +
  .../xdg-shell-unstable-v6-client-protocol.h        | 1744 ++++++++++++++++++++
- 7 files changed, 4027 insertions(+), 5 deletions(-)
- create mode 100644 ext/wayland/fullscreen-shell-unstable-v1-client-protocol.h
- create mode 100644 ext/wayland/linux-dmabuf-unstable-v1-client-protocol.h
- create mode 100644 ext/wayland/viewporter-client-protocol.h
- create mode 100644 ext/wayland/viewporter-protocol.c
- create mode 100644 ext/wayland/xdg-shell-unstable-v6-client-protocol.h
+ 6 files changed, 3325 insertions(+)
+ create mode 100755 ext/wayland/fullscreen-shell-unstable-v1-client-protocol.h
+ create mode 100755 ext/wayland/linux-dmabuf-unstable-v1-client-protocol.h
+ create mode 100755 ext/wayland/linux-dmabuf-unstable-v1-protocol.c
+ create mode 100755 ext/wayland/viewporter-client-protocol.h
+ create mode 100755 ext/wayland/viewporter-protocol.c
+ create mode 100755 ext/wayland/xdg-shell-unstable-v6-client-protocol.h
 
-diff --git a/ext/wayland/Makefile.am b/ext/wayland/Makefile.am
-index a23d44d..06fc63e 100644
---- a/ext/wayland/Makefile.am
-+++ b/ext/wayland/Makefile.am
-@@ -18,6 +18,10 @@ libgstwaylandsink_la_LIBADD = \
- 	$(GST_PLUGINS_BASE_LIBS) \
- 	-lgstvideo-$(GST_API_VERSION) \
- 	-lgstallocators-$(GST_API_VERSION) \
-+        -lweston-2 \
-+        -lweston-desktop-2 \
-+        -ldrm \
-+        -L$(top_builddir)/../../target/usr/lib \
- 	$(WAYLAND_LIBS) \
- 	$(top_builddir)/gst-libs/gst/wayland/libgstwayland-$(GST_API_VERSION).la
- libgstwaylandsink_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 diff --git a/ext/wayland/fullscreen-shell-unstable-v1-client-protocol.h b/ext/wayland/fullscreen-shell-unstable-v1-client-protocol.h
-new file mode 100644
+new file mode 100755
 index 0000000..b63d7b5
 --- /dev/null
 +++ b/ext/wayland/fullscreen-shell-unstable-v1-client-protocol.h
@@ -523,895 +508,8 @@ index 0000000..b63d7b5
 +#endif
 +
 +#endif
-diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
-index 4b39ae1..b1123bd 100644
---- a/ext/wayland/gstwaylandsink.c
-+++ b/ext/wayland/gstwaylandsink.c
-@@ -49,6 +49,643 @@
- #include <gst/wayland/wayland.h>
- #include <gst/video/videooverlay.h>
- 
-+
-+#include <stdint.h>
-+#include <stdio.h>
-+#include <stdlib.h>
-+#include <string.h>
-+#include <stdbool.h>
-+#include <assert.h>
-+#include <unistd.h>
-+#include <sys/mman.h>
-+#include <signal.h>
-+#include <fcntl.h>
-+
-+#include <libdrm/drm.h>
-+#include <libdrm/drm_fourcc.h>
-+
-+#include <sys/mman.h>
-+#include <sys/stat.h>
-+#include <fcntl.h>
-+#include <errno.h>
-+#include <linux/input.h>
-+#include <sys/time.h>
-+
-+#include <wayland-client.h>
-+#include "xdg-shell-unstable-v6-client-protocol.h"
-+#include "fullscreen-shell-unstable-v1-client-protocol.h"
-+#include "linux-dmabuf-unstable-v1-client-protocol.h"
-+#include "viewporter-client-protocol.h"
-+
-+#define CLEAR(x) memset(&(x), 0, sizeof(x))
-+#define DRM_FORMAT_NV12_10	fourcc_code('N', 'A', '1', '2')
-+
-+static void
-+redraw(void *data, struct wl_callback *callback, uint32_t time);
-+
-+static uint32_t
-+parse_format(const char fmt[4])
-+{
-+	return fourcc_code(fmt[0], fmt[1], fmt[2], fmt[3]);
-+}
-+
-+static inline const char *
-+dump_format(uint32_t format, char out[4])
-+{
-+#if BYTE_ORDER == BIG_ENDIAN
-+	format = __builtin_bswap32(format);
-+#endif
-+	memcpy(out, &format, 4);
-+	return out;
-+}
-+
-+struct buffer_format {
-+	int width;
-+	int height;
-+	uint32_t format;
-+
-+	unsigned num_planes;
-+	unsigned strides[4];
-+};
-+
-+struct display {
-+	struct wl_display *display;
-+	struct wl_registry *registry;
-+	struct wp_viewporter *viewporter;
-+	struct wl_compositor *compositor;
-+	struct wl_seat *seat;
-+	struct wl_keyboard *keyboard;
-+	struct zxdg_shell_v6 *shell;
-+	struct zwp_fullscreen_shell_v1 *fshell;
-+	struct zwp_linux_dmabuf_v1 *dmabuf;
-+	bool requested_format_found;
-+
-+	struct buffer_format format;
-+	uint32_t drm_format;
-+
-+	unsigned int display_width;
-+	unsigned int display_height;
-+	int drm_fd;
-+};
-+
-+struct drm_bo {
-+	unsigned int width;
-+	unsigned int height;
-+	unsigned int pitch;
-+	uint32_t format;
-+	size_t size;
-+
-+	uint32_t handle;
-+	int prime_fd;
-+
-+	void *ptr;
-+};
-+
-+struct buffer {
-+	struct wl_buffer *buffer;
-+	struct display *display;
-+	struct drm_bo *bo;
-+	int busy;
-+	int index;
-+
-+	int dmabuf_fds[4];
-+	int data_offsets[4];
-+};
-+
-+#define NUM_BUFFERS 1
-+
-+struct window {
-+	struct display *display;
-+	struct wl_surface *surface;
-+	struct zxdg_surface_v6 *xdg_surface;
-+	struct zxdg_toplevel_v6 *xdg_toplevel;
-+	struct buffer buffers[NUM_BUFFERS];
-+	struct wl_callback *callback;
-+	struct wp_viewport *viewport;
-+	bool wait_for_configure;
-+	bool initialized;
-+};
-+
-+static bool debug_enable = false;
-+static bool running = true;
-+static struct display *display;
-+static struct window *window;
-+static int fd;
-+static struct drm_bo *drm_bo;
-+
-+
-+void showfps()
-+{
-+	static int mFrameCount;
-+	static int mLastFrameCount = 0;
-+	static struct timeval last;
-+	static long mLastFpsTime = 0;
-+	static float mFps = 0;
-+	long diff;
-+	struct timeval now;
-+
-+	if (mFrameCount == 0)
-+		gettimeofday(&last, NULL);
-+	gettimeofday(&now, NULL);
-+	mFrameCount++;
-+	diff = (now.tv_sec - last.tv_sec) * 1000000 + now.tv_usec - last.tv_usec;
-+	if (diff > 500000) {
-+		mFps =  ((mFrameCount - mLastFrameCount) * 1.0) * 1000000 / diff;
-+		last = now;
-+		mLastFrameCount = mFrameCount;
-+		if (debug_enable)
-+			fprintf(stderr, "Fps = %2.3f mFrameConut=%d now=%d\n", mFps, mFrameCount, now.tv_sec * 1000000 + now.tv_usec);
-+	}
-+}
-+
-+static int
-+queue(struct display *display, struct buffer *buffer)
-+{
-+	return 1;
-+}
-+
-+static void
-+buffer_release(void *data, struct wl_buffer *buffer)
-+{
-+	struct buffer *mybuf = data;
-+
-+	mybuf->busy = 0;
-+	wl_buffer_destroy(buffer);
-+
-+	if (!queue(mybuf->display, mybuf))
-+		running = false;
-+}
-+
-+static const struct wl_buffer_listener buffer_listener = {
-+	buffer_release
-+};
-+
-+static unsigned int
-+set_format(struct display *display, uint32_t format)
-+{
-+	return 1;
-+}
-+
-+static void
-+create_succeeded(void *data,
-+		 struct zwp_linux_buffer_params_v1 *params,
-+		 struct wl_buffer *new_buffer)
-+{
-+	struct buffer *buffer = data;
-+
-+	if (debug_enable)
-+    	fprintf(stderr,"gstwaylandsink: create success----------\n");
-+	buffer->buffer = new_buffer;
-+	wl_buffer_add_listener(buffer->buffer, &buffer_listener, buffer);
-+
-+	zwp_linux_buffer_params_v1_destroy(params);
-+}
-+
-+static void
-+create_failed(void *data, struct zwp_linux_buffer_params_v1 *params)
-+{
-+	struct buffer *buffer = data;
-+	unsigned i;
-+   
-+	buffer->buffer = NULL;
-+
-+	zwp_linux_buffer_params_v1_destroy(params);
-+
-+	for (i = 0; i < buffer->display->format.num_planes; ++i){
-+		fprintf(stderr,"gstwaylandsink: create failed close fd %d\n",buffer->dmabuf_fds[i]);
-+		close(buffer->dmabuf_fds[i]);
-+	}
-+	running = false;
-+
-+	fprintf(stderr, "gstwaylandsink: Error: zwp_linux_buffer_params.create failed.\n");
-+}
-+
-+static const struct zwp_linux_buffer_params_v1_listener params_listener = {
-+	create_succeeded,
-+	create_failed
-+};
-+
-+static void
-+create_dmabuf_buffer(struct display *display, struct buffer *buffer)
-+{
-+	struct zwp_linux_buffer_params_v1 *params;
-+	uint64_t modifier;
-+	uint32_t flags;
-+	unsigned i;
-+	
-+	if (debug_enable)
-+		fprintf(stderr,"gstwaylandsink: create_dmabuf_buffer \n");
-+
-+	modifier = 0;
-+	flags = 0;
-+
-+	/* XXX: apparently some webcams may actually provide y-inverted images,
-+	 * in which case we should set
-+	 * flags = ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_Y_INVERT
-+	 */
-+	params = zwp_linux_dmabuf_v1_create_params(display->dmabuf);
-+	for (i = 0; i < display->format.num_planes; ++i)
-+		zwp_linux_buffer_params_v1_add(params,
-+		                               buffer->dmabuf_fds[i],
-+		                               i, /* plane_idx */
-+		                               buffer->data_offsets[i], /* offset */
-+		                               display->format.strides[i],
-+		                               modifier >> 32,
-+		                               modifier & 0xffffffff);
-+	zwp_linux_buffer_params_v1_add_listener(params, &params_listener,
-+	                                        buffer);
-+	zwp_linux_buffer_params_v1_create(params,
-+	                                  display->format.width,
-+	                                  display->format.height,
-+	                                  display->drm_format,
-+	                                  flags);
-+}
-+
-+static int
-+dequeue(struct display *display)
-+{
-+	static int index;
-+
-+	index++;
-+	index = index % NUM_BUFFERS;
-+
-+	return index;
-+}
-+
-+static void
-+xdg_surface_handle_configure(void *data, struct zxdg_surface_v6 *surface,
-+			     uint32_t serial)
-+{
-+	struct window *window = data;
-+
-+	zxdg_surface_v6_ack_configure(surface, serial);
-+
-+	if (window->initialized && window->wait_for_configure){
-+		fprintf(stderr,"gstwaylandsink: xdg_surface_handle_configure\n");
-+		redraw(window, NULL, 0);
-+		}
-+	
-+	window->wait_for_configure = false;
-+}
-+
-+static const struct zxdg_surface_v6_listener xdg_surface_listener = {
-+	xdg_surface_handle_configure,
-+};
-+
-+static void
-+xdg_toplevel_handle_configure(void *data, struct zxdg_toplevel_v6 *toplevel,
-+			      int32_t width, int32_t height,
-+			      struct wl_array *states)
-+{
-+}
-+
-+static void
-+xdg_toplevel_handle_close(void *data, struct zxdg_toplevel_v6 *xdg_toplevel)
-+{
-+	running = 0;
-+}
-+
-+static const struct zxdg_toplevel_v6_listener xdg_toplevel_listener = {
-+	xdg_toplevel_handle_configure,
-+	xdg_toplevel_handle_close,
-+};
-+
-+static struct window *
-+create_window(struct display *display)
-+{
-+	struct window *window;
-+
-+	window = malloc(sizeof *window);
-+	if (!window)
-+		return NULL;
-+	memset(window, 0, sizeof *window);
-+
-+	window->callback = NULL;
-+	window->display = display;
-+	window->surface = wl_compositor_create_surface(display->compositor);
-+	window->viewport = wp_viewporter_get_viewport(display->viewporter,
-+						      window->surface);
-+	if (display->shell) {
-+		window->xdg_surface =
-+			zxdg_shell_v6_get_xdg_surface(display->shell,
-+						      window->surface);
-+
-+		assert(window->xdg_surface);
-+
-+		zxdg_surface_v6_add_listener(window->xdg_surface,
-+					     &xdg_surface_listener, window);
-+
-+		window->xdg_toplevel =
-+			zxdg_surface_v6_get_toplevel(window->xdg_surface);
-+
-+		assert(window->xdg_toplevel);
-+
-+		zxdg_toplevel_v6_add_listener(window->xdg_toplevel,
-+					      &xdg_toplevel_listener, window);
-+
-+		zxdg_toplevel_v6_set_title(window->xdg_toplevel, "simple-dmabuf-v4l");
-+
-+		window->wait_for_configure = true;
-+		wl_surface_commit(window->surface);
-+	} else if (display->fshell) {
-+		zwp_fullscreen_shell_v1_present_surface(display->fshell,
-+		                                        window->surface,
-+		                                        ZWP_FULLSCREEN_SHELL_V1_PRESENT_METHOD_DEFAULT,
-+		                                        NULL);
-+	} else {
-+		assert(0);
-+	}
-+
-+	return window;
-+}
-+
-+static void
-+destroy_window(struct window *window)
-+{
-+	int i;
-+	unsigned j;
-+
-+	if (window->callback)
-+		wl_callback_destroy(window->callback);
-+
-+	if (window->xdg_toplevel)
-+		zxdg_toplevel_v6_destroy(window->xdg_toplevel);
-+	if (window->xdg_surface)
-+		zxdg_surface_v6_destroy(window->xdg_surface);
-+	if (window->viewport)
-+		wp_viewport_destroy(window->viewport);
-+	wl_surface_destroy(window->surface);
-+
-+	for (i = 0; i < NUM_BUFFERS; i++) {
-+		if (!window->buffers[i].buffer)
-+			continue;
-+
-+		wl_buffer_destroy(window->buffers[i].buffer);
-+		for (j = 0; j < window->display->format.num_planes; ++j)
-+			close(window->buffers[i].dmabuf_fds[j]);
-+	}
-+
-+	free(window);
-+}
-+
-+static const struct wl_callback_listener frame_listener;
-+
-+static void
-+redraw(void *data, struct wl_callback *callback, uint32_t time)
-+{
-+	struct window *window = data;
-+	struct buffer *buffer;
-+	int index, num_busy = 0;
-+
-+#if 0
-+	/* Check for a deadlock situation where we would block forever trying
-+	 * to dequeue a buffer while all of them are locked by the compositor.
-+	 */
-+	for (index = 0; index < NUM_BUFFERS; ++index)
-+		if (window->buffers[index].busy)
-+			++num_busy;
-+
-+	/* A robust application would just postpone redraw until it has queued
-+	 * a buffer.
-+	 */
-+	assert(num_busy < NUM_BUFFERS);
-+#endif
-+	if (debug_enable)
-+    	fprintf(stderr,"gstwaylandsink: redraw---------------\n");
-+	index = dequeue(window->display);
-+	if (index < 0) {	
-+		/* We couldn’t get any buffer out of the camera, exiting. */
-+		fprintf(stderr,"index < 0, return");
-+		running = false;
-+		return;
-+	}
-+
-+	buffer = &window->buffers[index];
-+	wl_surface_attach(window->surface, buffer->buffer, 0, 0);
-+	wl_surface_damage(window->surface, 0, 0,
-+	                  window->display->format.width,
-+	                  window->display->format.height);
-+
-+	if (callback)
-+		wl_callback_destroy(callback);
-+
-+	window->callback = wl_surface_frame(window->surface);
-+	wl_callback_add_listener(window->callback, &frame_listener, window);
-+	wl_surface_commit(window->surface);
-+	showfps();
-+	buffer->busy = 1;
-+	
-+}
-+
-+static const struct wl_callback_listener frame_listener = {
-+	redraw
-+};
-+
-+static void
-+dmabuf_format(void *data, struct zwp_linux_dmabuf_v1 *zwp_linux_dmabuf,
-+              uint32_t format)
-+{
-+	struct display *d = data;
-+
-+	if (format == d->drm_format)
-+		d->requested_format_found = true;
-+}
-+
-+static const struct zwp_linux_dmabuf_v1_listener dmabuf_listener = {
-+	dmabuf_format
-+};
-+
-+static void
-+keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard,
-+                       uint32_t format, int fd, uint32_t size)
-+{
-+	/* Just so we don’t leak the keymap fd */
-+	close(fd);
-+}
-+
-+static void
-+keyboard_handle_enter(void *data, struct wl_keyboard *keyboard,
-+                      uint32_t serial, struct wl_surface *surface,
-+                      struct wl_array *keys)
-+{
-+}
-+
-+static void
-+keyboard_handle_leave(void *data, struct wl_keyboard *keyboard,
-+                      uint32_t serial, struct wl_surface *surface)
-+{
-+}
-+
-+static void
-+keyboard_handle_key(void *data, struct wl_keyboard *keyboard,
-+                    uint32_t serial, uint32_t time, uint32_t key,
-+                    uint32_t state)
-+{
-+	struct display *d = data;
-+
-+	if (!d->shell)
-+		return;
-+
-+	if (key == KEY_ESC && state)
-+		running = false;
-+}
-+
-+static void
-+keyboard_handle_modifiers(void *data, struct wl_keyboard *keyboard,
-+                          uint32_t serial, uint32_t mods_depressed,
-+                          uint32_t mods_latched, uint32_t mods_locked,
-+                          uint32_t group)
-+{
-+}
-+
-+static const struct wl_keyboard_listener keyboard_listener = {
-+	keyboard_handle_keymap,
-+	keyboard_handle_enter,
-+	keyboard_handle_leave,
-+	keyboard_handle_key,
-+	keyboard_handle_modifiers,
-+};
-+
-+static void
-+seat_handle_capabilities(void *data, struct wl_seat *seat,
-+                         enum wl_seat_capability caps)
-+{
-+	struct display *d = data;
-+
-+	if ((caps & WL_SEAT_CAPABILITY_KEYBOARD) && !d->keyboard) {
-+		d->keyboard = wl_seat_get_keyboard(seat);
-+		wl_keyboard_add_listener(d->keyboard, &keyboard_listener, d);
-+	} else if (!(caps & WL_SEAT_CAPABILITY_KEYBOARD) && d->keyboard) {
-+		wl_keyboard_destroy(d->keyboard);
-+		d->keyboard = NULL;
-+	}
-+}
-+
-+static const struct wl_seat_listener seat_listener = {
-+	seat_handle_capabilities,
-+};
-+
-+static void
-+xdg_shell_ping(void *data, struct zxdg_shell_v6 *shell, uint32_t serial)
-+{
-+	zxdg_shell_v6_pong(shell, serial);
-+}
-+
-+static const struct zxdg_shell_v6_listener xdg_shell_listener = {
-+	xdg_shell_ping,
-+};
-+
-+static void
-+registry_handle_global(void *data, struct wl_registry *registry,
-+                       uint32_t id, const char *interface, uint32_t version)
-+{
-+	struct display *d = data;
-+
-+	if (strcmp(interface, "wl_compositor") == 0) {
-+		d->compositor =
-+			wl_registry_bind(registry,
-+			                 id, &wl_compositor_interface, version);
-+	} else if (strcmp(interface, "wp_viewporter") == 0) {
-+		d->viewporter = wl_registry_bind(registry, id,
-+						 &wp_viewporter_interface, 1);
-+	} else if (strcmp(interface, "wl_seat") == 0) {
-+		d->seat = wl_registry_bind(registry,
-+		                           id, &wl_seat_interface, 1);
-+		wl_seat_add_listener(d->seat, &seat_listener, d);
-+	} else if (strcmp(interface, "zxdg_shell_v6") == 0) {
-+		d->shell = wl_registry_bind(registry,
-+		                            id, &zxdg_shell_v6_interface, 1);
-+		zxdg_shell_v6_add_listener(d->shell, &xdg_shell_listener, d);
-+#if 0
-+	} else if (strcmp(interface, "zwp_fullscreen_shell_v1") == 0) {
-+		d->fshell = wl_registry_bind(registry,
-+		                             id, &zwp_fullscreen_shell_v1_interface,
-+		                             1);
-+#endif
-+	} else if (strcmp(interface, "zwp_linux_dmabuf_v1") == 0) {
-+		d->dmabuf = wl_registry_bind(registry,
-+		                             id, &zwp_linux_dmabuf_v1_interface,
-+		                             1);
-+		zwp_linux_dmabuf_v1_add_listener(d->dmabuf, &dmabuf_listener,
-+		                                 d);
-+	}
-+}
-+
-+static void
-+registry_handle_global_remove(void *data, struct wl_registry *registry,
-+                              uint32_t name)
-+{
-+}
-+
-+static const struct wl_registry_listener registry_listener = {
-+	registry_handle_global,
-+	registry_handle_global_remove
-+};
-+
-+static struct display *
-+create_display(uint32_t requested_format)
-+{
-+	struct display *display;
-+
-+	display = malloc(sizeof *display);
-+	if (display == NULL) {
-+		fprintf(stderr, "out of memory\n");
-+		exit(1);
-+	}
-+	display->display = wl_display_connect(NULL);
-+	assert(display->display);
-+
-+	display->drm_format = requested_format;
-+
-+	display->registry = wl_display_get_registry(display->display);
-+	wl_registry_add_listener(display->registry,
-+	                         &registry_listener, display);
-+	wl_display_roundtrip(display->display);
-+	if (display->dmabuf == NULL) {
-+		fprintf(stderr, "No zwp_linux_dmabuf global\n");
-+		exit(1);
-+	}
-+
-+	wl_display_roundtrip(display->display);
-+
-+	/* XXX: fake, because the compositor does not yet advertise anything */
-+	display->requested_format_found = true;
-+
-+	if (!display->requested_format_found) {
-+		fprintf(stderr, "DRM_FORMAT_YUYV not available\n");
-+		exit(1);
-+	}
-+
-+	return display;
-+}
-+
-+static void
-+destroy_display(struct display *display)
-+{
-+	if (display->dmabuf)
-+		zwp_linux_dmabuf_v1_destroy(display->dmabuf);
-+
-+	if (display->shell)
-+		zxdg_shell_v6_destroy(display->shell);
-+
-+	if (display->fshell)
-+		zwp_fullscreen_shell_v1_release(display->fshell);
-+
-+	if (display->compositor)
-+		wl_compositor_destroy(display->compositor);
-+
-+	wl_registry_destroy(display->registry);
-+	wl_display_flush(display->display);
-+	wl_display_disconnect(display->display);
-+	free(display);
-+}
-+
-+static void
-+signal_int(int signum)
-+{
-+	running = false;
-+}
-+
- /* signals */
- enum
- {
-@@ -72,7 +709,7 @@ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
-     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
-         ("{ BGRx, BGRA, RGBx, xBGR, xRGB, RGBA, ABGR, ARGB, RGB, BGR, "
-             "RGB16, BGR16, YUY2, YVYU, UYVY, AYUV, NV12, NV21, NV16, "
--            "YUV9, YVU9, Y41B, I420, YV12, Y42B, v308 }"))
-+            "YUV9, YVU9, Y41B, I420, YV12, Y42B, v308,P010_10LE,NV12_10 }"))
-     );
- 
- static void gst_wayland_sink_get_property (GObject * object,
-@@ -158,6 +795,18 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
-       g_param_spec_string ("display", "Wayland Display name", "Wayland "
-           "display name to connect to, if not supplied via the GstContext",
-           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
-+
-+	struct sigaction sigint;
-+	sigint.sa_handler = signal_int;
-+	sigemptyset(&sigint.sa_mask);
-+	sigint.sa_flags = SA_RESETHAND;
-+	sigaction(SIGINT, &sigint, NULL);
-+		const char *debug;
-+
-+	debug = getenv("GSTWAYLANDSINKDEBUG");
-+	if (debug && (strstr(debug, "enable") || strstr(debug, "1")))
-+		debug_enable = true;
-+
- }
- 
- static void
-@@ -403,9 +1052,12 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
-       g_value_init (&value, G_TYPE_STRING);
-       fmt = g_array_index (formats, uint32_t, i);
-       g_value_set_static_string (&value, gst_wl_shm_format_to_string (fmt));
-+	  GST_DEBUG_OBJECT (sink, "format-----------: %s" ,gst_wl_shm_format_to_string (fmt));
-       gst_value_list_append_and_take_value (&list, &value);
-     }
--
-+	g_value_init (&value, G_TYPE_STRING);
-+	g_value_set_static_string(&value,"P010_10LE");
-+    gst_value_list_append_and_take_value(&list,&value);
-     caps = gst_caps_make_writable (caps);
-     gst_structure_take_value (gst_caps_get_structure (caps, 0), "format",
-         &list);
-@@ -467,6 +1119,7 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
-   if (!gst_video_info_from_caps (&info, caps))
-     goto invalid_format;
- 
-+#if 0
-   format = gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (&info));
-   if ((gint) format == -1)
-     goto invalid_format;
-@@ -480,6 +1133,7 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
- 
-   if (i >= formats->len)
-     goto unsupported_format;
-+#endif
- 
-   /* store the video info */
-   sink->video_info = info;
-@@ -494,6 +1148,29 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
-   gst_object_replace ((GstObject **) & sink->pool, (GstObject *) newpool);
-   gst_object_unref (newpool);
- 
-+  uint32_t drm_format;
-+  GstVideoFormat fmt;
-+  fmt = (GST_VIDEO_INFO_FORMAT (&info));
-+  if(fmt==GST_VIDEO_FORMAT_P010_10LE){
-+  	fprintf(stderr,"p010------width=%d,height=%d\n",GST_VIDEO_INFO_WIDTH (&info),GST_VIDEO_INFO_HEIGHT (&info));
-+	drm_format = DRM_FORMAT_NV12_10;
-+  }else{
-+       drm_format = parse_format("NV12");
-+  }
-+  display = create_display(drm_format);
-+  display->format.format = drm_format;
-+  display->format.num_planes = 2;
-+  display->format.width =GST_VIDEO_INFO_WIDTH (&info);
-+  display->format.height =GST_VIDEO_INFO_HEIGHT (&info);
-+	  
-+  display->drm_fd = open("/dev/dri/card0", O_RDWR);
-+  if (display->drm_fd < 0) {
-+		  fprintf(stderr, "failed to open /dev/dri/card0\n");
-+		  //return 1;
-+  }
-+  
-+  window = create_window(display);
-+
-   return TRUE;
- 
- invalid_format:
-@@ -501,6 +1178,7 @@ invalid_format:
-     GST_ERROR_OBJECT (sink,
-         "Could not locate image format from caps %" GST_PTR_FORMAT, caps);
-     return FALSE;
-+    
-   }
- unsupported_format:
-   {
-@@ -557,6 +1235,76 @@ static const struct wl_callback_listener frame_callback_listener = {
-   frame_redraw_callback
- };
- 
-+
-+static gboolean 
-+gst_wayland_sink_put(GstWaylandSink * wlsink, GstBuffer * sink_buffer) {
-+    GstMemory *mem;
-+	guint32 w, h, fmt;
-+	int lcd_w,lcd_h, scale_w, scale_h;
-+	guint32 dmabuf_fd;
-+	gint index;
-+	gint ret = 0;
-+
-+	mem = gst_buffer_peek_memory (sink_buffer, 0);
-+	
-+	dmabuf_fd = gst_dmabuf_memory_get_fd(mem);
-+	
-+	w = GST_VIDEO_INFO_WIDTH (&wlsink->video_info);
-+	h = GST_VIDEO_INFO_HEIGHT (&wlsink->video_info);
-+	
-+	if (debug_enable)
-+		fprintf(stderr,"gstwaylandsink: dmabuf_fd=%d, w=%d, h=%d \n",dmabuf_fd,w,h);
-+
-+	for (index = 0; index < NUM_BUFFERS; ++index) {
-+		struct buffer *buffer;
-+		GstMapInfo info;
-+
-+		buffer = &window->buffers[index];
-+		buffer->display = display;
-+		buffer->index = index;
-+
-+        GstVideoMeta *video_info;
-+        video_info = gst_buffer_get_video_meta (sink_buffer);
-+		if (display->format.width >= 3840) {
-+	        display->format.strides[0] = video_info->stride[0]*2;
-+		    display->format.strides[1] = video_info->stride[1]*2;
-+			display->format.height = h/2;
-+		} else {
-+			display->format.strides[0] = video_info->stride[0];
-+			display->format.strides[1] = video_info->stride[1];
-+		}
-+		
-+		buffer->data_offsets[0] = video_info->offset[0];
-+		buffer->data_offsets[1] = video_info->offset[1];
-+		
-+		buffer->dmabuf_fds[0] = dmabuf_fd;
-+		buffer->dmabuf_fds[1] = dmabuf_fd;
-+
-+		create_dmabuf_buffer(display, buffer);
-+	}
-+
-+	window->initialized = true;
-+	
-+/*** screen size need*** to do *****/
-+    lcd_h = 2048;
-+	lcd_w = 1536;
-+
-+	scale_w = lcd_w;
-+	scale_h = h * scale_w / w;
-+
-+	
-+	//wl_surface_set_buffer_transform(window->surface, WL_OUTPUT_TRANSFORM_NORMAL);
-+	wp_viewport_set_destination(window->viewport, scale_w, scale_h);
-+	if (display->format.format == DRM_FORMAT_NV12_10)
-+		wp_viewport_set_destination(window->viewport, 1536, 1200);
-+	
-+	wl_display_roundtrip(display->display);
-+
-+	ret = wl_display_dispatch(display->display);
-+
-+	return 0;	
-+}
-+
- /* must be called with the render lock */
- static void
- render_last_buffer (GstWaylandSink * sink)
-@@ -577,9 +1325,14 @@ render_last_buffer (GstWaylandSink * sink)
-     info = &sink->video_info;
-     sink->video_info_changed = FALSE;
-   }
-+  //gst_buffer_ref(sink->last_buffer);
-+  //gst_wayland_sink_put(sink, sink->last_buffer);
-+  //gst_buffer_unref(sink->last_buffer);
-   gst_wl_window_render (sink->window, wlbuffer, info);
- }
- 
-+
-+
- static GstFlowReturn
- gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
- {
-@@ -600,6 +1353,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
-     g_mutex_lock (&sink->render_lock);
- 
-     if (!sink->window) {
-+		printf(stderr,"sink-> false");
-       /* if we were not provided a window, create one ourselves */
-       sink->window = gst_wl_window_new_toplevel (sink->display,
-           &sink->video_info, &sink->render_lock);
-@@ -613,7 +1367,16 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
-   /* make sure that the application has called set_render_rectangle() */
-   if (G_UNLIKELY (sink->window->render_rectangle.w == 0))
-     goto no_window_size;
--
-+  GstMemory *mem;
-+  mem = gst_buffer_peek_memory (buffer, 0);
-+  gst_buffer_ref(buffer);
-+  if (gst_is_dmabuf_memory(mem)) {
-+        gst_wayland_sink_put(sink, buffer);
-+		gst_buffer_unref(buffer);
-+		//sink->redraw_pending = TRUE;
-+        GST_DEBUG_OBJECT(sink, "buffer is dmabuffer");
-+	}
-+  goto done;
-   wlbuffer = gst_buffer_get_wl_buffer (buffer);
- 
-   if (G_LIKELY (wlbuffer && wlbuffer->display == sink->display)) {
-@@ -641,7 +1404,15 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
- 
-     /* FIXME check all memory when introducing DMA-Buf */
-     mem = gst_buffer_peek_memory (buffer, 0);
--
-+    /*
-+	if (gst_is_dmabuf_memory(mem)) {
-+        gst_wayland_sink_put(sink, buffer);
-+        GST_DEBUG_OBJECT(sink, "buffer is dmabuffer");
-+	}
-+    //gst_buffer_unref (buffer);
-+	goto no_buffer;
-+	*/
-+	
-     if (gst_is_wl_shm_memory (mem)) {
-       wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, sink->display,
-           &sink->video_info);
-@@ -719,7 +1490,6 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
- 
-   gst_buffer_replace (&sink->last_buffer, to_render);
-   render_last_buffer (sink);
--
-   if (buffer != to_render)
-     gst_buffer_unref (to_render);
-   goto done;
 diff --git a/ext/wayland/linux-dmabuf-unstable-v1-client-protocol.h b/ext/wayland/linux-dmabuf-unstable-v1-client-protocol.h
-new file mode 100644
+new file mode 100755
 index 0000000..1e8b915
 --- /dev/null
 +++ b/ext/wayland/linux-dmabuf-unstable-v1-client-protocol.h
@@ -1965,8 +1063,91 @@ index 0000000..1e8b915
 +#endif
 +
 +#endif
+diff --git a/ext/wayland/linux-dmabuf-unstable-v1-protocol.c b/ext/wayland/linux-dmabuf-unstable-v1-protocol.c
+new file mode 100755
+index 0000000..a0da7e0
+--- /dev/null
++++ b/ext/wayland/linux-dmabuf-unstable-v1-protocol.c
+@@ -0,0 +1,77 @@
++/* Generated by wayland-scanner 1.13.0 */
++
++/*
++ * Copyright Â© 2014, 2015 Collabora, Ltd.
++ *
++ * Permission to use, copy, modify, distribute, and sell this
++ * software and its documentation for any purpose is hereby granted
++ * without fee, provided that the above copyright notice appear in
++ * all copies and that both that copyright notice and this permission
++ * notice appear in supporting documentation, and that the name of
++ * the copyright holders not be used in advertising or publicity
++ * pertaining to distribution of the software without specific,
++ * written prior permission.  The copyright holders make no
++ * representations about the suitability of this software for any
++ * purpose.  It is provided "as is" without express or implied
++ * warranty.
++ *
++ * THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++ * SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++ * FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++ * ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++ * THIS SOFTWARE.
++ */
++
++#include <stdlib.h>
++#include <stdint.h>
++#include "wayland-util.h"
++
++extern const struct wl_interface wl_buffer_interface;
++extern const struct wl_interface zwp_linux_buffer_params_v1_interface;
++
++static const struct wl_interface *types[] = {
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	&zwp_linux_buffer_params_v1_interface,
++	&wl_buffer_interface,
++};
++
++static const struct wl_message zwp_linux_dmabuf_v1_requests[] = {
++	{ "destroy", "", types + 0 },
++	{ "create_params", "n", types + 6 },
++};
++
++static const struct wl_message zwp_linux_dmabuf_v1_events[] = {
++	{ "format", "u", types + 0 },
++};
++
++WL_EXPORT const struct wl_interface zwp_linux_dmabuf_v1_interface = {
++	"zwp_linux_dmabuf_v1", 1,
++	2, zwp_linux_dmabuf_v1_requests,
++	1, zwp_linux_dmabuf_v1_events,
++};
++
++static const struct wl_message zwp_linux_buffer_params_v1_requests[] = {
++	{ "destroy", "", types + 0 },
++	{ "add", "huuuuu", types + 0 },
++	{ "create", "iiuu", types + 0 },
++};
++
++static const struct wl_message zwp_linux_buffer_params_v1_events[] = {
++	{ "created", "n", types + 7 },
++	{ "failed", "", types + 0 },
++};
++
++WL_EXPORT const struct wl_interface zwp_linux_buffer_params_v1_interface = {
++	"zwp_linux_buffer_params_v1", 1,
++	3, zwp_linux_buffer_params_v1_requests,
++	2, zwp_linux_buffer_params_v1_events,
++};
++
 diff --git a/ext/wayland/viewporter-client-protocol.h b/ext/wayland/viewporter-client-protocol.h
-new file mode 100644
+new file mode 100755
 index 0000000..76af360
 --- /dev/null
 +++ b/ext/wayland/viewporter-client-protocol.h
@@ -2380,7 +1561,7 @@ index 0000000..76af360
 +
 +#endif
 diff --git a/ext/wayland/viewporter-protocol.c b/ext/wayland/viewporter-protocol.c
-new file mode 100644
+new file mode 100755
 index 0000000..8bc362c
 --- /dev/null
 +++ b/ext/wayland/viewporter-protocol.c
@@ -2450,7 +1631,7 @@ index 0000000..8bc362c
 +};
 +
 diff --git a/ext/wayland/xdg-shell-unstable-v6-client-protocol.h b/ext/wayland/xdg-shell-unstable-v6-client-protocol.h
-new file mode 100644
+new file mode 100755
 index 0000000..14cc9ad
 --- /dev/null
 +++ b/ext/wayland/xdg-shell-unstable-v6-client-protocol.h

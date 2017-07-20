@@ -1,6 +1,6 @@
-From 3bc833f9baa28a43a4ba293aa9310286371da6f2 Mon Sep 17 00:00:00 2001
+From cae5b90c24f0510baf15b8092bc3671456d12dbc Mon Sep 17 00:00:00 2001
 From: Binyuan Lan <lby@rock-chips.com>
-Date: Fri, 30 Jun 2017 11:36:10 +0800
+Date: Thu, 20 Jul 2017 23:03:04 +0800
 Subject: [PATCH] kmssink: add render_rectangle and show fps for qt
 
 Signed-off-by: Binyuan Lan <lby@rock-chips.com>
@@ -12,10 +12,10 @@ Signed-off-by: Binyuan Lan <lby@rock-chips.com>
  4 files changed, 108 insertions(+), 4 deletions(-)
 
 diff --git a/sys/kms/gstkmsallocator.c b/sys/kms/gstkmsallocator.c
-index e031848..cd52461 100644
+index 648ac2f..cf6a0bf 100644
 --- a/sys/kms/gstkmsallocator.c
 +++ b/sys/kms/gstkmsallocator.c
-@@ -337,6 +337,8 @@ gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
+@@ -396,6 +396,8 @@ gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
      pitches[i] = GST_VIDEO_INFO_PLANE_STRIDE (vinfo, i);
      GST_DEBUG_OBJECT (alloc, "Create FB plane %i with stride %u and offset %u",
          i, pitches[i], offsets[i]);
@@ -25,7 +25,7 @@ index e031848..cd52461 100644
  
    ret = drmModeAddFB2 (alloc->priv->fd, w, h, fmt, bo_handles, pitches,
 diff --git a/sys/kms/gstkmssink.c b/sys/kms/gstkmssink.c
-index 8508b0d..1a2d311 100644
+index d19e19e..6a635dc 100644
 --- a/sys/kms/gstkmssink.c
 +++ b/sys/kms/gstkmssink.c
 @@ -60,15 +60,30 @@
@@ -61,7 +61,7 @@ index 8508b0d..1a2d311 100644
  
  enum
  {
-@@ -365,10 +380,11 @@ gst_kms_sink_start (GstBaseSink * bsink)
+@@ -506,10 +521,11 @@ gst_kms_sink_start (GstBaseSink * bsink)
    pres = NULL;
    plane = NULL;
  
@@ -75,7 +75,7 @@ index 8508b0d..1a2d311 100644
    if (self->fd < 0)
      goto open_failed;
  
-@@ -1058,10 +1074,57 @@ error_map_src_buffer:
+@@ -1214,10 +1230,57 @@ error_map_src_buffer:
    }
  }
  
@@ -133,7 +133,7 @@ index 8508b0d..1a2d311 100644
    GstBuffer *buffer;
    guint32 fb_id;
    GstKMSSink *self;
-@@ -1075,6 +1138,11 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
+@@ -1231,6 +1294,11 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
  
    res = GST_FLOW_ERROR;
  
@@ -145,7 +145,7 @@ index 8508b0d..1a2d311 100644
    buffer = gst_kms_sink_get_input_buffer (self, buf);
    if (!buffer)
      return GST_FLOW_ERROR;
-@@ -1112,6 +1180,21 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
+@@ -1274,6 +1342,21 @@ retry_set_plane:
      src.h = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
    }
  
@@ -167,7 +167,7 @@ index 8508b0d..1a2d311 100644
    GST_TRACE_OBJECT (self,
        "drmModeSetPlane at (%i,%i) %ix%i sourcing at (%i,%i) %ix%i",
        result.x, result.y, result.w, result.h, src.x, src.y, src.w, src.h);
-@@ -1131,6 +1214,18 @@ gst_kms_sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
+@@ -1300,6 +1383,18 @@ sync_frame:
  
    res = GST_FLOW_OK;
  
@@ -186,7 +186,7 @@ index 8508b0d..1a2d311 100644
  bail:
    gst_buffer_unref (buffer);
    return res;
-@@ -1228,6 +1323,11 @@ gst_kms_sink_init (GstKMSSink * sink)
+@@ -1403,6 +1498,11 @@ gst_kms_sink_init (GstKMSSink * sink)
    gst_poll_fd_init (&sink->pollfd);
    sink->poll = gst_poll_new (TRUE);
    gst_video_info_init (&sink->vinfo);
@@ -199,10 +199,10 @@ index 8508b0d..1a2d311 100644
  
  static void
 diff --git a/sys/kms/gstkmssink.h b/sys/kms/gstkmssink.h
-index 494f440..57f3344 100644
+index 214f3ad..b79f462 100644
 --- a/sys/kms/gstkmssink.h
 +++ b/sys/kms/gstkmssink.h
-@@ -74,6 +74,7 @@ struct _GstKMSSink {
+@@ -78,6 +78,7 @@ struct _GstKMSSink {
  
    GstPoll *poll;
    GstPollFD pollfd;
@@ -211,7 +211,7 @@ index 494f440..57f3344 100644
  
  struct _GstKMSSinkClass {
 diff --git a/sys/kms/gstkmsutils.c b/sys/kms/gstkmsutils.c
-index ddf8d2d..9dbe46c 100644
+index 838cddd..72e4b4b 100644
 --- a/sys/kms/gstkmsutils.c
 +++ b/sys/kms/gstkmsutils.c
 @@ -47,6 +47,7 @@ static const struct
