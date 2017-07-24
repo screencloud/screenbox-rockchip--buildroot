@@ -18,6 +18,11 @@ ALEXACLIENTSDK_CONF_OPTS +=\
 						   -DKITTAI_KEY_WORD_DETECTOR_LIB_PATH=$(TOPDIR)/output/build/alexaClientSDK/source/snowboy/lib/rpi/libsnowboy-detect.a \
 						   -DKITTAI_KEY_WORD_DETECTOR_INCLUDE_DIR=$(TOPDIR)/output/build/alexaClientSDK/source/snowboy/include \
 
+ALEXACLIENTSDK_CONF_OPTS +=\
+						   -DPORTAUDIO=ON \
+						   -DPORTAUDIO_LIB_PATH=$(TOPDIR)/output/target/usr/lib/libportaudio.so \
+						   -DPORTAUDIO_INCLUDE_DIR=$(TOPDIR)/output/host/usr/arm-rockchip-linux-gnueabihf/sysroot/usr/include/
+
 $(eval $(cmake-package))
 endif
 
