@@ -14,7 +14,11 @@ ALEXACLIENTSDK_CONF_OPTS +=\
 						   -DGSTREAMER_MEDIA_PLAYER=ON
 
 ALEXACLIENTSDK_CONF_OPTS +=\
-						   -DKITTAI_KEY_WORD_DETECTOR=ON \
+						   -DSENSORY_KEY_WORD_DETECTOR=ON \
+						   -DSENSORY_KEY_WORD_DETECTOR_LIB_PATH=$(TOPDIR)/output/build/alexaClientSDK/source/alexa-rpi/lib/libsnsr.a \
+						   -DSENSORY_KEY_WORD_DETECTOR_INCLUDE_DIR=$(TOPDIR)/output/build/alexaClientSDK/source/alexa-rpi/include
+
+						   #-DKITTAI_KEY_WORD_DETECTOR=ON \
 						   -DKITTAI_KEY_WORD_DETECTOR_LIB_PATH=$(TOPDIR)/output/build/alexaClientSDK/source/snowboy/lib/rpi/libsnowboy-detect.a \
 						   -DKITTAI_KEY_WORD_DETECTOR_INCLUDE_DIR=$(TOPDIR)/output/build/alexaClientSDK/source/snowboy/include \
 
