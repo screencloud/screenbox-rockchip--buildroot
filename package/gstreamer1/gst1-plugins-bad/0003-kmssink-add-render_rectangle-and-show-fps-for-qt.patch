@@ -1,4 +1,4 @@
-From cae5b90c24f0510baf15b8092bc3671456d12dbc Mon Sep 17 00:00:00 2001
+From 31c2e931b7fea9c12c327bf3f52e67e573b3543f Mon Sep 17 00:00:00 2001
 From: Binyuan Lan <lby@rock-chips.com>
 Date: Thu, 20 Jul 2017 23:03:04 +0800
 Subject: [PATCH] kmssink: add render_rectangle and show fps for qt
@@ -6,10 +6,10 @@ Subject: [PATCH] kmssink: add render_rectangle and show fps for qt
 Signed-off-by: Binyuan Lan <lby@rock-chips.com>
 ---
  sys/kms/gstkmsallocator.c |   2 +
- sys/kms/gstkmssink.c      | 108 ++++++++++++++++++++++++++++++++++++++++++++--
+ sys/kms/gstkmssink.c      | 106 ++++++++++++++++++++++++++++++++++++++++++++--
  sys/kms/gstkmssink.h      |   1 +
  sys/kms/gstkmsutils.c     |   1 +
- 4 files changed, 108 insertions(+), 4 deletions(-)
+ 4 files changed, 106 insertions(+), 4 deletions(-)
 
 diff --git a/sys/kms/gstkmsallocator.c b/sys/kms/gstkmsallocator.c
 index 648ac2f..cf6a0bf 100644
@@ -25,7 +25,7 @@ index 648ac2f..cf6a0bf 100644
  
    ret = drmModeAddFB2 (alloc->priv->fd, w, h, fmt, bo_handles, pitches,
 diff --git a/sys/kms/gstkmssink.c b/sys/kms/gstkmssink.c
-index d19e19e..6a635dc 100644
+index d19e19e..f277236 100644
 --- a/sys/kms/gstkmssink.c
 +++ b/sys/kms/gstkmssink.c
 @@ -60,15 +60,30 @@
@@ -145,16 +145,14 @@ index d19e19e..6a635dc 100644
    buffer = gst_kms_sink_get_input_buffer (self, buf);
    if (!buffer)
      return GST_FLOW_ERROR;
-@@ -1274,6 +1342,21 @@ retry_set_plane:
+@@ -1274,6 +1342,19 @@ retry_set_plane:
      src.h = GST_VIDEO_INFO_HEIGHT (&self->vinfo);
    }
  
 +  kms_get_render_rectangle (self, &result.x, &result.y, &result.w,
 +      &result.h);
-+  if(result.w < result.h){
-+	  result.y = result.y + (result.h - src.h * result.w/src.w)/2;
-+	  result.h = src.h * result.w/src.w;
-+	}
++
++  gst_video_sink_center_rect (src, result, &result, self->can_scale);
 +
 +  if (src.w >= 3840)
 +	src.h /=2;
@@ -167,7 +165,7 @@ index d19e19e..6a635dc 100644
    GST_TRACE_OBJECT (self,
        "drmModeSetPlane at (%i,%i) %ix%i sourcing at (%i,%i) %ix%i",
        result.x, result.y, result.w, result.h, src.x, src.y, src.w, src.h);
-@@ -1300,6 +1383,18 @@ sync_frame:
+@@ -1300,6 +1381,18 @@ sync_frame:
  
    res = GST_FLOW_OK;
  
@@ -186,7 +184,7 @@ index d19e19e..6a635dc 100644
  bail:
    gst_buffer_unref (buffer);
    return res;
-@@ -1403,6 +1498,11 @@ gst_kms_sink_init (GstKMSSink * sink)
+@@ -1403,6 +1496,11 @@ gst_kms_sink_init (GstKMSSink * sink)
    gst_poll_fd_init (&sink->pollfd);
    sink->poll = gst_poll_new (TRUE);
    gst_video_info_init (&sink->vinfo);
