@@ -14,7 +14,7 @@ endif
 QT5WAYLAND_INSTALL_STAGING = YES
 
 define QT5WAYLAND_CONFIGURE_CMDS
-	(cd $(@D); $(TARGET_MAKE_ENV) $(HOST_DIR)/usr/bin/qmake)
+	(cd $(@D); $(TARGET_MAKE_ENV) $(HOST_DIR)/bin/qmake)
 endef
 
 define QT5WAYLAND_BUILD_CMDS
