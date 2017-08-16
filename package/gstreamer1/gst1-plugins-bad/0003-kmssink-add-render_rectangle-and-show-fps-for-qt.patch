@@ -1,4 +1,4 @@
-From 31c2e931b7fea9c12c327bf3f52e67e573b3543f Mon Sep 17 00:00:00 2001
+From eca0024353ffb072196010a3e32daa4f45611c85 Mon Sep 17 00:00:00 2001
 From: Binyuan Lan <lby@rock-chips.com>
 Date: Thu, 20 Jul 2017 23:03:04 +0800
 Subject: [PATCH] kmssink: add render_rectangle and show fps for qt
@@ -12,20 +12,20 @@ Signed-off-by: Binyuan Lan <lby@rock-chips.com>
  4 files changed, 106 insertions(+), 4 deletions(-)
 
 diff --git a/sys/kms/gstkmsallocator.c b/sys/kms/gstkmsallocator.c
-index 648ac2f..cf6a0bf 100644
+index 648ac2f..4975e1f 100644
 --- a/sys/kms/gstkmsallocator.c
 +++ b/sys/kms/gstkmsallocator.c
 @@ -396,6 +396,8 @@ gst_kms_allocator_add_fb (GstKMSAllocator * alloc, GstKMSMemory * kmsmem,
      pitches[i] = GST_VIDEO_INFO_PLANE_STRIDE (vinfo, i);
      GST_DEBUG_OBJECT (alloc, "Create FB plane %i with stride %u and offset %u",
          i, pitches[i], offsets[i]);
-+	if (w >= 3840)
++	if ((GST_VIDEO_INFO_FORMAT(vinfo) == GST_VIDEO_FORMAT_P010_10LE) && (w >= 3840))
 +		pitches[i] *= 2;
    }
  
    ret = drmModeAddFB2 (alloc->priv->fd, w, h, fmt, bo_handles, pitches,
 diff --git a/sys/kms/gstkmssink.c b/sys/kms/gstkmssink.c
-index d19e19e..f277236 100644
+index d19e19e..d73cddd 100644
 --- a/sys/kms/gstkmssink.c
 +++ b/sys/kms/gstkmssink.c
 @@ -60,15 +60,30 @@
@@ -154,8 +154,8 @@ index d19e19e..f277236 100644
 +
 +  gst_video_sink_center_rect (src, result, &result, self->can_scale);
 +
-+  if (src.w >= 3840)
-+	src.h /=2;
++  if ((GST_VIDEO_INFO_FORMAT(&self->vinfo) == GST_VIDEO_FORMAT_P010_10LE) && (src.w >= 3840))
++	  src.h /=2;
 +  if((GST_VIDEO_INFO_FORMAT(&self->vinfo) == GST_VIDEO_FORMAT_P010_10LE) && (result.h <= 1200))
 +	{
 +		result.y = result.y - (1200 - result.h)/2;
