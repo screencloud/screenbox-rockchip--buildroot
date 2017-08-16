@@ -1,0 +1,30 @@
+From 516be397399750d1cfc3a0a5c699226ba7d29647 Mon Sep 17 00:00:00 2001
+From: zyh <zyh@rock-chips.com>
+Date: Wed, 16 Aug 2017 10:26:12 +0800
+Subject: [PATCH] fix mutex err for alexa play book err.
+
+Assertion 'pthread_mutex_unlock(&m->mutex) == 0' failed at pulsecore/mutex-posix.c:118
+
+Signed-off-by: zyh <zyh@rock-chips.com>
+---
+ sysdeps/unix/sysv/linux/arm/kernel-features.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sysdeps/unix/sysv/linux/arm/kernel-features.h b/sysdeps/unix/sysv/linux/arm/kernel-features.h
+index 6f1606c..cc304b6 100644
+--- a/sysdeps/unix/sysv/linux/arm/kernel-features.h
++++ b/sysdeps/unix/sysv/linux/arm/kernel-features.h
+@@ -37,8 +37,8 @@
+ /* The ARM kernel before 3.14.3 may or may not support
+    futex_atomic_cmpxchg_inatomic, depending on kernel
+    configuration.  */
+-#if __LINUX_KERNEL_VERSION < 0x030E03
++/*#if __LINUX_KERNEL_VERSION < 0x030E03
+ # undef __ASSUME_FUTEX_LOCK_PI
+ # undef __ASSUME_REQUEUE_PI
+ # undef __ASSUME_SET_ROBUST_LIST
+-#endif
++#endif*/
+-- 
+1.9.1
+
