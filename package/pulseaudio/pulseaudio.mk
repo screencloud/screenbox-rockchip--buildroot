@@ -15,6 +15,10 @@ PULSEAUDIO_CONF_OPTS = \
 	--disable-legacy-database-entry-format \
 	--disable-manpages
 
+ifeq ($(BR2_PACKAGE_ALEXACLIENTSDK),y)
+PULSEAUDIO_CONF_OPTS += --without-speex
+endif
+
 # Make sure we don't detect libatomic_ops. Indeed, since pulseaudio
 # requires json-c, which needs 4 bytes __sync builtins, there should
 # be no need for pulseaudio to rely on libatomic_ops.
