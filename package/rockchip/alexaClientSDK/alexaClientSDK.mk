@@ -1,6 +1,7 @@
-# Rockchip's liblog porting from Android
-# Author : Cody Xie <cody.xie@rock-chips.com>
+# Rockchip's alexa c++ sdk
+# Author : Nyx Zheng <zyh@rock-chips.com>
 
+ifeq ($(BR2_PACKAGE_ALEXACLIENTSDK_INTERNAL),y)
 ifeq ($(BR2_PACKAGE_ALEXACLIENTSDK),y)
 ALEXACLIENTSDK_SITE = $(TOPDIR)/../external/alexaClientSDK
 ALEXACLIENTSDK_SITE_METHOD = local
@@ -8,8 +9,8 @@ ALEXACLIENTSDK_INSTALL_STAGING = YES
 ALEXACLIENTSDK_DEPENDENCIES = libcurl libnghttp2  gst1-plugins-base gst1-plugins-ugly portaudio
 ALEXACLIENTSDK_CONF_OPTS +=\
 						   CMAKE_CURRENT_SOURCE_DIR= source \
-						   -DLIBRARY_OUTPUT_PATH=$(TOPDIR)/output/target/usr/lib/ \
-						   -DEXECUTABLE_OUTPUT_PATH=$(TOPDIR)/output/target/usr/bin \
+						   -DLIBRARY_OUTPUT_PATH=$(TOPDIR)/board/rockchip/rk3036/fs-overlay/usr/lib \
+						   -DEXECUTABLE_OUTPUT_PATH=$(TOPDIR)/board/rockchip/rk3036/fs-overlay/usr/bin \
 						   -DCMAKE_BUILD_TYPE=DEBUG \
 						   -DGSTREAMER_MEDIA_PLAYER=ON
 
@@ -28,6 +29,7 @@ ALEXACLIENTSDK_CONF_OPTS +=\
 						   -DPORTAUDIO_INCLUDE_DIR=$(TOPDIR)/output/host/usr/arm-rockchip-linux-gnueabihf/sysroot/usr/include/
 
 $(eval $(cmake-package))
+endif
 endif
 
 
