@@ -1,6 +1,6 @@
-From 5623ce4b17ffbf0906e13dddae74372a02ed8ac4 Mon Sep 17 00:00:00 2001
+From 1873778253421364e0d8d7d3d89b36b93be578d7 Mon Sep 17 00:00:00 2001
 From: WangJianhui <wjh@rock-chips.com>
-Date: Tue, 12 Sep 2017 14:27:08 +0800
+Date: Thu, 14 Sep 2017 09:01:24 +0800
 Subject: [PATCH] glmark2: support for rockchip
 
 Signed-off-by: WangJianhui <wjh@rock-chips.com>
@@ -9,15 +9,15 @@ Signed-off-by: WangJianhui <wjh@rock-chips.com>
  1 file changed, 1 insertion(+)
 
 diff --git a/src/native-state-drm.cpp b/src/native-state-drm.cpp
-index 19e05a7..eca0d4f 100644
+index 4df75ec..d886e34 100644
 --- a/src/native-state-drm.cpp
 +++ b/src/native-state-drm.cpp
 @@ -200,6 +200,7 @@ NativeStateDRM::init()
      // TODO: Replace this with something that explicitly probes for the loaded
      // driver (udev?).
      static const char* drm_modules[] = {
-+	"rockchip"
- 	"i915",
++	"rockchip",
+         "i915",
          "nouveau",
          "radeon",
 -- 
