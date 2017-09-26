@@ -42,8 +42,10 @@ auto_mount() {
 
 		mount -t ${data_type} ${fdir}data /data
 		mount -t ${cfg_type} ${fdir}cfg /data/cfg
-	else
+		return 0
+	fi
 
+	if [ "${flash_type:0:11}" == "/dev/mmcblk" ];then
         printf "insmod drmboot service...\n"
         insmod /usr/lib/modules/drmboot.ko
 		local ftmp="${cmdline##*mtdparts=rk29xxnand:}"
@@ -56,9 +58,7 @@ auto_mount() {
 			i=${i##*\(}
 			i=${i%*\)}
 			local fno=$(( fno + 1 ))
-			if [ "${i}" == "cfg" -o "${i}" == "data" ];then
-				ln -sf "/dev/mmcblk0p${fno}" ${fdir}/${i}
-			fi
+			ln -sf "/dev/mmcblk0p${fno}" ${fdir}/${i}
 		done
 
 		if [ "${data_type}" == "ext4" ];then
@@ -72,17 +72,33 @@ auto_mount() {
 
 		mount -t ${data_type} ${fdir}/data /data
 		mount -t ${cfg_type} ${fdir}/cfg /data/cfg
+		return 0
 	fi
+
+	if [ "${flash_type:0:9}" == "/dev/boot" ];then
+		if [ "${data_type}" == "ext4" ];then
+			e2fsck -fy /dev/data
+			resize2fs /dev/data
+		fi
+		if [ "${cfg_type}" == "ext4" ];then
+			e2fsck -fy /dev/cfg
+			resize2fs /dev/cfg
+		fi
+
+		mount -t ${data_type} /dev/data /data
+		mount -t ${cfg_type} /dev/cfg /data/cfg
+		return 0
+	fi
+
 }
 
 case "$1" in
   start)
         auto_mount
-		printf "insmod vcodec service...\n"
+        printf "insmod vcodec service...\n"
         insmod /usr/lib/modules/vcodec_service.ko
         ;;
   stop)
-		printf "kill ueventmonitor\n"
         printf "stop finished\n"
         ;;
   *)
