@@ -76,6 +76,8 @@ auto_mount() {
 case "$1" in
   start)
         auto_mount
+        printf "insmod vcodec service...\n"
+        insmod /system/etc/firmware/vcodec_service.ko
         ;;
   stop)
         printf "stop finished\n"
