@@ -10,7 +10,7 @@ ALSA_PLUGINS_SITE = ftp://ftp.alsa-project.org/pub/plugins
 ALSA_PLUGINS_LICENSE = GPLv2
 ALSA_PLUGINS_LICENSE_FILES = COPYING
 ALSA_PLUGINS_INSTALL_STAGING = YES
-ALSA_PLUGINS_DEPENDENCIES = alsa-lib \
+ALSA_PLUGINS_DEPENDENCIES = host-pkgconf alsa-lib \
 	$(if $(BR2_PACKAGE_NCURSES),ncurses) \
 	$(if $(BR2_PACKAGE_LIBSAMPLERATE),libsamplerate)
 # Regenerate aclocal.m4 to pick the patched
