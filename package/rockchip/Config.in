@@ -38,5 +38,6 @@ source "package/rockchip/wakeWordAgent/Config.in"
 source "package/rockchip/pcba/Config.in"
 source "package/rockchip/libiep/Config.in"
 source "package/rockchip/softap/Config.in"
+source "package/rockchip/softapServer/Config.in"
 
 endif
