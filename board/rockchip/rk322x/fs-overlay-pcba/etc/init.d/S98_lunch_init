@@ -2,6 +2,8 @@ source /etc/profile.d/RkEnv.sh
 
 case "$1" in
   start)
+        printf "insmod vcodec service...\n"
+        insmod /system/etc/firmware/vcodec_service.ko
         source /data/RkLunch.sh
         ;;
   stop)
