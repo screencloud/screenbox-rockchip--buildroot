@@ -6,7 +6,7 @@ ifeq ($(BR2_PACKAGE_ALEXACLIENTSDK),y)
 ALEXACLIENTSDK_SITE = $(TOPDIR)/../external/alexaClientSDK
 ALEXACLIENTSDK_SITE_METHOD = local
 ALEXACLIENTSDK_INSTALL_STAGING = YES
-ALEXACLIENTSDK_DEPENDENCIES = libcurl libnghttp2  gst1-plugins-base gst1-plugins-ugly portaudio
+ALEXACLIENTSDK_DEPENDENCIES = libcurl libnghttp2  gst1-plugins-base gst1-plugins-ugly portaudio wpa_supplicant
 ALEXACLIENTSDK_CONF_OPTS +=\
 						   CMAKE_CURRENT_SOURCE_DIR= source \
 						   -DLIBRARY_OUTPUT_PATH=$(TOPDIR)/board/rockchip/rk3036/fs-overlay/usr/lib \
