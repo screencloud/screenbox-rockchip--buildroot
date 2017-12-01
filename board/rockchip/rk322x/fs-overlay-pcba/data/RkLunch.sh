@@ -1,4 +1,4 @@
 #! /bin/sh
 
-sleep 3
-PcbaTestLunch.sh &
+echo_pcbatest_server &
+
