@@ -40,5 +40,6 @@ source "package/rockchip/libiep/Config.in"
 source "package/rockchip/softap/Config.in"
 source "package/rockchip/softapServer/Config.in"
 source "package/rockchip/wifiAutoSetup/Config.in"
+source "package/rockchip/gstreamer1-iep/Config.in"
 
 endif
