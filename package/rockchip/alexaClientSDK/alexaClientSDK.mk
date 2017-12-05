@@ -9,8 +9,8 @@ ALEXACLIENTSDK_INSTALL_STAGING = YES
 ALEXACLIENTSDK_DEPENDENCIES = libcurl libnghttp2  gst1-plugins-base gst1-plugins-ugly portaudio wpa_supplicant
 ALEXACLIENTSDK_CONF_OPTS +=\
 						   CMAKE_CURRENT_SOURCE_DIR= source \
-						   -DLIBRARY_OUTPUT_PATH=$(TOPDIR)/board/rockchip/rk3036/fs-overlay/usr/lib \
-						   -DEXECUTABLE_OUTPUT_PATH=$(TOPDIR)/board/rockchip/rk3036/fs-overlay/usr/bin \
+						   -DLIBRARY_OUTPUT_PATH=$(TOPDIR)/$(BR2_ROOTFS_OVERLAY)/usr/lib \
+						   -DEXECUTABLE_OUTPUT_PATH=$(TOPDIR)/$(BR2_ROOTFS_OVERLAY)/usr/bin \
 						   -DCMAKE_BUILD_TYPE=DEBUG \
 						   -DGSTREAMER_MEDIA_PLAYER=ON
 
