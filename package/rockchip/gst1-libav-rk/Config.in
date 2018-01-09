@@ -1,0 +1,11 @@
+config BR2_PACKAGE_GST1_LIBAV_RK
+	bool "Gstreamer Rockchip ffmpeg plugins"
+	select BR2_PACKAGE_GST1_PLUGINS_BASE
+	select BR2_PACKAGE_LIBDRM
+	help
+	  Rockchip rkvdec video accel Gstreamer plugin.
+
+	  This package contains GStreamer plugins base on
+	  the libav project.
+
+          https://github.com/JamesLinEngineer/gst-libav-rk

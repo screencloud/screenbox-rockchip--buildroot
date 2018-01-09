@@ -1,0 +1,11 @@
+GST1_LIBAV_RK_SITE = "https://github.com/JamesLinEngineer/gst-libav-rk.git"
+GST1_LIBAV_RK_VERSION = 3.3
+GST1_LIBAV_RK_SITE_METHOD = git
+GST1_LIBAV_RK_GIT_SUBMODULES = YES
+
+GST1_LIBAV_RK_LICENSE_FILES = COPYING
+GST1_LIBAV_RK_LICENSE = GPLv2.1+
+GST1_LIBAV_RK_AUTORECONF = YES
+GST1_LIBAV_RK_DEPENDENCIES = gst1-plugins-base libdrm
+
+$(eval $(autotools-package))

@@ -1,0 +1,55 @@
+From 9334dfec646e7719c2898194499b6ef465dff8cc Mon Sep 17 00:00:00 2001
+From: "james.lin" <james.lin@rock-chips.com>
+Date: Mon, 8 Jan 2018 17:03:46 +0800
+Subject: [PATCH] [PATCH]: disable rkvdec hevc, h264 colmv config
+
+Change-Id: I7200176eebfe823fd36c4a1da97026dc8da427db
+Signed-off-by: james.lin <james.lin@rock-chips.com>
+---
+ ext/libav/gstdrmallocator.c                 | 2 +-
+ gst-libs/ext/libav/libavcodec/rkvdec_h264.c | 2 +-
+ gst-libs/ext/libav/libavcodec/rkvdec_hevc.c | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/ext/libav/gstdrmallocator.c b/ext/libav/gstdrmallocator.c
+index a345fe8..efb1548 100755
+--- a/ext/libav/gstdrmallocator.c
++++ b/ext/libav/gstdrmallocator.c
+@@ -304,7 +304,7 @@ gst_drm_allocator_alloc (GstAllocator * allocator, GstVideoInfo * vinfo)
+   fmt = gst_drm_format_from_video(GST_VIDEO_INFO_FORMAT (vinfo));
+   arg.bpp = 8;
+   arg.height = 1;
+-  arg.width = h * gst_drm_width_from_drm(fmt, w) * alloc->priv->alloc_scale;
++  arg.width = h * gst_drm_width_from_drm(fmt, w) * 1.35;
+ 
+   ret = drmIoctl (alloc->priv->device_fd, DRM_IOCTL_MODE_CREATE_DUMB, &arg);
+   if (ret)
+diff --git a/gst-libs/ext/libav/libavcodec/rkvdec_h264.c b/gst-libs/ext/libav/libavcodec/rkvdec_h264.c
+index 938fa1d..cdc1a75 100755
+--- a/gst-libs/ext/libav/libavcodec/rkvdec_h264.c
++++ b/gst-libs/ext/libav/libavcodec/rkvdec_h264.c
+@@ -753,7 +753,7 @@ static int fill_picture_colmv(const H264Context* h)
+ {
+     RKVDECH264Context * const ctx = ff_rkvdec_get_context(h->avctx);
+     H264Picture *current_picture = h->cur_pic_ptr;
+-    int enable_colmv = 1;
++    int enable_colmv = 0;
+ 
+     if (!enable_colmv && !ctx->motion_val_pool)
+         return 0;
+diff --git a/gst-libs/ext/libav/libavcodec/rkvdec_hevc.c b/gst-libs/ext/libav/libavcodec/rkvdec_hevc.c
+index 3b00cbe..dadf159 100755
+--- a/gst-libs/ext/libav/libavcodec/rkvdec_hevc.c
++++ b/gst-libs/ext/libav/libavcodec/rkvdec_hevc.c
+@@ -1257,7 +1257,7 @@ static int fill_picture_colmv(const HEVCContext* h)
+     RKVDECHevcContext* const ctx = ff_rkvdec_get_context(h->avctx);
+     HEVCFrame* current_picture = h->ref;
+ 
+-    int enable_colmv = 1;
++    int enable_colmv = 0;
+ 
+     if (!enable_colmv && !ctx->motion_val_pool)
+      return 0;
+-- 
+2.7.4
+
