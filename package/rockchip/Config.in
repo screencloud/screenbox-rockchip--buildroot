@@ -21,6 +21,11 @@ config BR2_PACKAGE_RK3036_ECHO
 	help
 		Use rockchip's rk3036g chip
 
+config BR2_PACKAGE_RK3308
+    bool "rk3308 chip"
+    help
+        Use rockchip's rk3308 chip
+
 endchoice
 
 # BSP packages

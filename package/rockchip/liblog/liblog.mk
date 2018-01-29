@@ -9,6 +9,14 @@ LIBLOG_INSTALL_STAGING = YES
 $(eval $(cmake-package))
 endif
 
+ifeq ($(BR2_PACKAGE_RK3308),y)
+LIBLOG_SITE = $(TOPDIR)/../external/liblog
+LIBLOG_SITE_METHOD = local
+LIBLOG_INSTALL_STAGING = YES
+
+$(eval $(cmake-package))
+endif
+
 ifeq ($(BR2_PACKAGE_RK312X),y)
 LIBLOG_SITE = $(TOPDIR)/../external/liblog
 LIBLOG_SITE_METHOD = local
