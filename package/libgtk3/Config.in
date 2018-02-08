@@ -4,11 +4,11 @@ comment "libgtk3 needs a toolchain w/ wchar, threads, C++"
 	depends on !BR2_USE_WCHAR || !BR2_INSTALL_LIBSTDCPP || \
 		!BR2_TOOLCHAIN_HAS_THREADS
 
-comment "libgtk3 needs an OpenGL or OpenGL EGL backend provided by mesa3d"
+comment "libgtk3 needs an OpenGL or an OpenGL-EGL/wayland backend"
 	depends on BR2_USE_MMU
 	depends on BR2_TOOLCHAIN_HAS_SYNC_4
-	depends on !BR2_PACKAGE_MESA3D_OPENGL_EGL && \
-		!BR2_PACKAGE_HAS_LIBGL
+	depends on !BR2_PACKAGE_HAS_LIBEGL_WAYLAND && \
+		!BR2_PACKAGE_HAS_LIBEGL
 
 config BR2_PACKAGE_LIBGTK3
 	bool "libgtk3"
@@ -29,8 +29,8 @@ config BR2_PACKAGE_LIBGTK3
 	depends on BR2_USE_MMU # glib2
 	depends on BR2_INSTALL_LIBSTDCPP # pango
 	depends on BR2_TOOLCHAIN_HAS_SYNC_4 # pango -> harfbuzz
-	depends on BR2_PACKAGE_MESA3D_OPENGL_EGL || \
-		BR2_PACKAGE_HAS_LIBGL
+	depends on BR2_PACKAGE_HAS_LIBEGL_WAYLAND || \
+		BR2_PACKAGE_HAS_LIBEGL
 	help
 	  The GTK+ version 3 graphical user interface library
 
@@ -65,7 +65,7 @@ comment "Wayland GDK backend needs an OpenGL EGL backend provided by mesa3d w/ h
 config BR2_PACKAGE_LIBGTK3_WAYLAND
 	bool "Wayland GDK backend"
 	default y
-	depends on BR2_PACKAGE_MESA3D_OPENGL_EGL
+	depends on BR2_PACKAGE_HAS_LIBEGL_WAYLAND
 	depends on BR2_TOOLCHAIN_HEADERS_AT_LEAST_3_17
 	select BR2_PACKAGE_WAYLAND
 	select BR2_PACKAGE_WAYLAND_PROTOCOLS
@@ -74,13 +74,13 @@ config BR2_PACKAGE_LIBGTK3_WAYLAND
 	  This enables the Wayland backend for GDK.
 
 comment "X11 GDK backend needs an OpenGL provider"
-	depends on !BR2_PACKAGE_HAS_LIBGL
+	depends on !BR2_PACKAGE_HAS_LIBEGL
 
 config BR2_PACKAGE_LIBGTK3_X11
 	bool "X11 GDK backend"
 	default y
 	depends on BR2_PACKAGE_XORG7
-	depends on BR2_PACKAGE_HAS_LIBGL
+	depends on BR2_PACKAGE_HAS_LIBEGL
 	select BR2_PACKAGE_FONTCONFIG
 	select BR2_PACKAGE_XLIB_LIBX11
 	select BR2_PACKAGE_XLIB_LIBXEXT
