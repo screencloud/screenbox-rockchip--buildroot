@@ -20,6 +20,7 @@
 ::sysinit:/bin/mkdir -p /dev/shm
 ::sysinit:/bin/mount -a
 ::sysinit:/bin/hostname -F /etc/hostname
+null::sysinit:/sbin/ifconfig lo up
 # now run any rc scripts
 ::respawn:-/bin/sh
 ::sysinit:/etc/init.d/rcS

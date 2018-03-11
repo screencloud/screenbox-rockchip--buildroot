@@ -26,11 +26,17 @@ ADBD_DEPENDENCIES += busybox
 endif
 endif
 
+ifeq ($(BR2_KERNEL_HEADERS_4_4),y)
+ADBD_INIT_SCRIPT=package/rockchip/adbd/S30adbd-configfs
+else
 ADBD_INIT_SCRIPT=package/rockchip/adbd/S30adbd
+endif
 
 define ADBD_INSTALL_INIT_SYSV
 $(INSTALL) -D -m 0755 ${ADBD_INIT_SCRIPT} \
 		$(TARGET_DIR)/etc/init.d/S30adbd
+$(INSTALL) -D -m 0755 package/rockchip/adbd/usb_config \
+        $(TARGET_DIR)/usr/bin/usb_config
 endef
 
 $(eval $(cmake-package))
