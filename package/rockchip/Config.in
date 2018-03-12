@@ -50,4 +50,5 @@ source "package/rockchip/gstreamer1-iep/Config.in"
 source "package/rockchip/gst1-libav-rk/Config.in"
 source "package/rockchip/rkwifibt/Config.in"
 source "package/rockchip/rockchip_utils/Config.in"
+source "package/rockchip/mdev_mount/Config.in"
 endif
