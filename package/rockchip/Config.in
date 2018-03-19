@@ -51,4 +51,5 @@ source "package/rockchip/gst1-libav-rk/Config.in"
 source "package/rockchip/rkwifibt/Config.in"
 source "package/rockchip/rockchip_utils/Config.in"
 source "package/rockchip/mdev_mount/Config.in"
+source "package/rockchip/alsa_capture/Config.in"
 endif
