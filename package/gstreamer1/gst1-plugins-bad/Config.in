@@ -666,6 +666,13 @@ config BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_WAYLAND
 	help
 	  Wayland Video Sink
 
+config BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_KMS
+	bool "kms"
+	depends on BR2_PACKAGE_LIBDRM
+	default y
+	help
+	  Kms Video Sink
+
 config BR2_PACKAGE_GST1_PLUGINS_BAD_PLUGIN_WEBP
 	bool "webp"
 	select BR2_PACKAGE_WEBP
