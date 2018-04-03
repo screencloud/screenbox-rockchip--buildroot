@@ -13,6 +13,10 @@ else ifeq ($(BR2_PACKAGE_RK312X),y)
 LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
 LIBCUTILS_SITE_METHOD = local
 LIBCUTILS_DEPENDENCIES += liblog
+else ifeq ($(BR2_PACKAGE_RK3229),y)
+LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
+LIBCUTILS_SITE_METHOD = local
+LIBCUTILS_DEPENDENCIES += liblog
 else
 LIBCUTILS_SITE = $(call qstrip, ssh://git@10.10.10.78:2222/argus/externals/libcutils.git)
 LIBCUTILS_SITE_METHOD = git
