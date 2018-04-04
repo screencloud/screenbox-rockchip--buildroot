@@ -7,7 +7,7 @@ config BR2_PACKAGE_MPV
 	# ARC toolchain issue
 	depends on !BR2_TOOLCHAIN_EXTERNAL_SYNOPSYS_ARC
 	select BR2_PACKAGE_LIBICONV if !BR2_ENABLE_LOCALE
-	select BR2_PACKAGE_FFMPEG
+	select BR2_PACKAGE_FFMPEG3
 	select BR2_PACKAGE_FFMPEG_SWSCALE
 	select BR2_PACKAGE_ZLIB
 	# Select xkbcommon for wayland to avoid being mysterious
