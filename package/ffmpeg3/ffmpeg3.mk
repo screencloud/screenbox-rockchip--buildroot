@@ -4,9 +4,9 @@
 #
 ################################################################################
 
-FFMPEG3_VERSION = 3.2.7
-FFMPEG3_SOURCE = ffmpeg-$(FFMPEG3_VERSION).tar.xz
-FFMPEG3_SITE = http://ffmpeg.org/releases
+FFMPEG3_VERSION = master
+FFMPEG3_SITE = https://github.com/JamesLinEngineer/FFmpeg-RK
+FFMPEG3_SITE_METHOD = git
 FFMPEG3_INSTALL_STAGING = YES
 
 FFMPEG3_LICENSE = LGPLv2.1+, libjpeg license
@@ -19,14 +19,12 @@ endif
 FFMPEG3_CONF_OPTS = \
 	--prefix=/usr \
 	--enable-avfilter \
-	--disable-version3 \
 	--enable-logging \
 	--enable-optimizations \
 	--disable-extra-warnings \
 	--enable-avdevice \
 	--enable-avcodec \
 	--enable-avformat \
-	--disable-x11grab \
 	--enable-network \
 	--disable-gray \
 	--enable-swscale-alpha \
@@ -39,10 +37,12 @@ FFMPEG3_CONF_OPTS = \
 	--disable-dxva2 \
 	--enable-runtime-cpudetect \
 	--disable-hardcoded-tables \
-	--disable-memalign-hack \
 	--disable-mipsdspr2 \
 	--disable-msa \
 	--enable-hwaccels \
+	--disable-cuda \
+	--disable-cuvid \
+	--disable-nvenc \
 	--disable-avisynth \
 	--disable-frei0r \
 	--disable-libopencore-amrnb \
@@ -52,9 +52,7 @@ FFMPEG3_CONF_OPTS = \
 	--disable-libdc1394 \
 	--disable-libgsm \
 	--disable-libilbc \
-	--disable-libnut \
 	--disable-libopenjpeg \
-	--disable-libschroedinger \
 	--disable-libvo-amrwbenc \
 	--disable-symver \
 	--disable-doc
@@ -89,8 +87,6 @@ endif
 
 ifeq ($(BR2_PACKAGE_FFMPEG_FFSERVER),y)
 FFMPEG3_CONF_OPTS += --enable-ffserver
-else
-FFMPEG3_CONF_OPTS += --disable-ffserver
 endif
 
 ifeq ($(BR2_PACKAGE_FFMPEG_AVRESAMPLE),y)
@@ -238,6 +234,12 @@ FFMPEG3_CONF_OPTS += \
 	--enable-libvorbis \
 	--enable-muxer=ogg \
 	--enable-encoder=libvorbis
+endif
+
+ifeq ($(BR2_PACKAGE_MPP),y)
+FFMPEG3_CONF_OPTS += --enable-rkmpp --enable-libdrm --enable-version3
+else
+FFMPEG3_CONF_OPTS += --disable-rkmpp
 endif
 
 ifeq ($(BR2_PACKAGE_LIBVA),y)
@@ -433,6 +435,8 @@ else
 FFMPEG3_CONF_OPTS += --disable-vfp
 endif
 ifeq ($(BR2_ARM_CPU_HAS_NEON),y)
+FFMPEG3_CONF_OPTS += --enable-neon
+else ifeq ($(BR2_aarch64),y)
 FFMPEG3_CONF_OPTS += --enable-neon
 else
 FFMPEG3_CONF_OPTS += --disable-neon
