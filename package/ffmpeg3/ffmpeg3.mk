@@ -237,6 +237,7 @@ FFMPEG3_CONF_OPTS += \
 endif
 
 ifeq ($(BR2_PACKAGE_MPP),y)
+FFMPEG3_DEPENDENCIES += mpp libdrm
 FFMPEG3_CONF_OPTS += --enable-rkmpp --enable-libdrm --enable-version3
 else
 FFMPEG3_CONF_OPTS += --disable-rkmpp
