@@ -1,0 +1,26 @@
+From a9bc064946a6ad8a241cc098c160af0bb63981bd Mon Sep 17 00:00:00 2001
+From: "james.lin" <james.lin@rock-chips.com>
+Date: Thu, 12 Apr 2018 15:01:54 +0800
+Subject: [PATCH] set audio stream sparse flag
+
+Signed-off-by: james.lin <james.lin@rock-chips.com>
+---
+ gst/mpegtsdemux/tsdemux.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/gst/mpegtsdemux/tsdemux.c b/gst/mpegtsdemux/tsdemux.c
+index 20357a8..634fc47 100755
+--- a/gst/mpegtsdemux/tsdemux.c
++++ b/gst/mpegtsdemux/tsdemux.c
+@@ -1612,6 +1612,8 @@ done:
+     gst_event_set_stream (event, bstream->stream_object);
+     if (demux->have_group_id)
+       gst_event_set_group_id (event, demux->group_id);
++    if (is_audio)
++        sparse = TRUE;
+     if (sparse) {
+       gst_event_set_stream_flags (event, GST_STREAM_FLAG_SPARSE);
+       gst_stream_set_stream_flags (bstream->stream_object,
+-- 
+2.7.4
+
