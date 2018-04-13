@@ -13,7 +13,7 @@ else ifeq ($(BR2_PACKAGE_RK312X),y)
 LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
 LIBCUTILS_SITE_METHOD = local
 LIBCUTILS_DEPENDENCIES += liblog
-else ifeq ($(BR2_PACKAGE_RK3229),y)
+else ifeq ($(BR2_PACKAGE_RK3128H),y)
 LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
 LIBCUTILS_SITE_METHOD = local
 LIBCUTILS_DEPENDENCIES += liblog

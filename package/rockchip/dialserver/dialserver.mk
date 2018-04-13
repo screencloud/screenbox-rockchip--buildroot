@@ -6,7 +6,7 @@
 
 # add dependencies
 #DIALSERVER_DEPENDENCIES = libcutils
-ifeq ($(BR2_PACKAGE_RK3229),y)
+ifeq ($(BR2_PACKAGE_RK3128H),y)
 DIALSERVER_VERSION =
 DIALSERVER_SITE = $(TOPDIR)/../external/dialserver
 #$(info $(DIALSERVER_SITE))
