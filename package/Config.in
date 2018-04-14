@@ -482,6 +482,7 @@ endmenu
 	source "package/wf111/Config.in"
 	source "package/wipe/Config.in"
 	source "package/xorriso/Config.in"
+	source "package/pm-utils/Config.in"
 endmenu
 
 menu "Interpreter languages and scripting"
