@@ -18,16 +18,12 @@ suspend_resume_by_Key()
     echo "System will suspend, Please resume by key"
     echo mem >  /sys/power/state
 }
-i=0;
+
 auto_suspend_resume()
 {
     while true
     do
-        let i+=1
         echo mem >  /sys/power/state
-        echo "============================================="
-        echo "      sleep/wakeup times=$i"
-        echo "============================================="
         sleep 5
     done
 }
