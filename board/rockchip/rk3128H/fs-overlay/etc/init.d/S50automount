@@ -96,7 +96,7 @@ case "$1" in
   start)
         auto_mount
         printf "insmod vcodec service...\n"
-        #insmod /usr/lib/modules/vcodec_service.ko
+        insmod /usr/lib/modules/vcodec_service.ko
         ;;
   stop)
         printf "stop finished\n"
