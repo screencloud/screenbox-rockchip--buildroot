@@ -27,8 +27,10 @@ test -r $UDEV_CONFIG || exit 6
 
 case "$1" in
     start)
+	echo "/sbin/mdev" >/proc/sys/kernel/hotplug
+	mdev -s
         printf "Populating ${udev_root:-/dev} using udev: "
-        printf '\000\000\000\000' > /proc/sys/kernel/hotplug
+        #printf '\000\000\000\000' > /proc/sys/kernel/hotplug
         $UDEV_BIN -d || (echo "FAIL" && exit 1)
         udevadm trigger --type=subsystems --action=add
         udevadm trigger --type=devices --action=add
@@ -36,6 +38,7 @@ case "$1" in
         echo "done"
         ;;
     stop)
+	killall mdev
         # Stop execution of events
         udevadm control --stop-exec-queue
         killall udevd
