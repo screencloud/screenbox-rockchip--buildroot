@@ -62,4 +62,5 @@ source "package/rockchip/libhdmiset/Config.in"
 source "package/rkweston/Config.in"
 source "package/rockchip/rockchip_test/Config.in"
 source "package/rockchip/dialserver/Config.in"
+source "package/rockchip/linux-rga/Config.in"
 endif
