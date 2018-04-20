@@ -1,19 +1,19 @@
-From ee65d34c1acb7a8041375962b0371ca0500dde53 Mon Sep 17 00:00:00 2001
+From f6b53948f6d2c0af3f88efa6ac7eb3ce09debba4 Mon Sep 17 00:00:00 2001
 From: "james.lin" <james.lin@rock-chips.com>
-Date: Mon, 16 Apr 2018 10:29:03 +0800
-Subject: [PATCH] multiqueue: 1. Don't start new pads until parented           
-  2. Full care about both bytes and time
+Date: Fri, 20 Apr 2018 15:15:28 +0800
+Subject: [PATCH] multiqueue donot start new pads until parended and modify
+ full condition and mechanism
 
 Signed-off-by: james.lin <james.lin@rock-chips.com>
 ---
- plugins/elements/gstmultiqueue.c | 137 ++++++++++++++++++++++++++++-----------
- 1 file changed, 99 insertions(+), 38 deletions(-)
+ plugins/elements/gstmultiqueue.c | 142 ++++++++++++++++++++++++++++-----------
+ 1 file changed, 104 insertions(+), 38 deletions(-)
  mode change 100644 => 100755 plugins/elements/gstmultiqueue.c
 
 diff --git a/plugins/elements/gstmultiqueue.c b/plugins/elements/gstmultiqueue.c
 old mode 100644
 new mode 100755
-index d8c6ca1..98bd9bd
+index d8c6ca1..82096ec
 --- a/plugins/elements/gstmultiqueue.c
 +++ b/plugins/elements/gstmultiqueue.c
 @@ -150,6 +150,7 @@ struct _GstSingleQueue
@@ -67,9 +67,9 @@ index d8c6ca1..98bd9bd
 +
 +static gboolean
 +gst_single_queue_pause (GstMultiQueue * mq, GstSingleQueue * sq)
- {
-   gboolean result;
- 
++{
++  gboolean result;
++
 +  GST_LOG_OBJECT (mq, "SingleQueue %d : pausing task", sq->id);
 +  result = gst_pad_pause_task (sq->srcpad);
 +  sq->sink_tainted = sq->src_tainted = TRUE;
@@ -78,9 +78,9 @@ index d8c6ca1..98bd9bd
 +
 +static gboolean
 +gst_single_queue_stop (GstMultiQueue * mq, GstSingleQueue * sq)
-+{
-+  gboolean result;
-+
+ {
+   gboolean result;
+ 
 +  GST_LOG_OBJECT (mq, "SingleQueue %d : stopping task", sq->id);
 +  result = gst_pad_stop_task (sq->srcpad);
 +  sq->sink_tainted = sq->src_tainted = TRUE;
@@ -318,7 +318,19 @@ index d8c6ca1..98bd9bd
        }
        break;
      default:
-@@ -2814,7 +2867,7 @@ single_queue_check_full (GstDataQueue * dataq, guint visible, guint bytes,
+@@ -2708,6 +2761,11 @@ single_queue_overrun_cb (GstDataQueue * dq, GstSingleQueue * sq)
+       sq->max_size.visible, size.bytes, sq->max_size.bytes, sq->cur_time,
+       sq->max_size.time);
+ 
++  if (sq->srcresult == GST_FLOW_NOT_LINKED) {
++    GST_WARNING_OBJECT(mq, "Single Queue %d: not linked flush", sq->id);
++    gst_single_queue_flush_queue(sq, FALSE);
++  }
++
+   GST_MULTI_QUEUE_MUTEX_LOCK (mq);
+ 
+   /* check if we reached the hard time/bytes limits;
+@@ -2814,7 +2872,7 @@ single_queue_check_full (GstDataQueue * dataq, guint visible, guint bytes,
        sq->max_size.bytes, sq->cur_time, sq->max_size.time);
  
    /* we are always filled on EOS */
@@ -327,7 +339,7 @@ index d8c6ca1..98bd9bd
      return TRUE;
  
    /* we never go past the max visible items unless we are in buffering mode */
-@@ -2823,6 +2876,11 @@ single_queue_check_full (GstDataQueue * dataq, guint visible, guint bytes,
+@@ -2823,6 +2881,11 @@ single_queue_check_full (GstDataQueue * dataq, guint visible, guint bytes,
  
    /* check time or bytes */
    res = IS_FILLED (sq, bytes, bytes);
@@ -339,7 +351,7 @@ index d8c6ca1..98bd9bd
    /* We only care about limits in time if we're not a sparse stream or
     * we're not syncing by running time */
    if (!sq->is_sparse || !mq->sync_by_running_time) {
-@@ -3022,6 +3080,9 @@ gst_single_queue_new (GstMultiQueue * mqueue, guint id)
+@@ -3022,6 +3085,9 @@ gst_single_queue_new (GstMultiQueue * mqueue, guint id)
    }
    gst_element_add_pad (GST_ELEMENT (mqueue), sq->srcpad);
    gst_element_add_pad (GST_ELEMENT (mqueue), sq->sinkpad);
