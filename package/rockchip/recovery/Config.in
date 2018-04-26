@@ -1,0 +1,5 @@
+config BR2_PACKAGE_RECOVERY
+	bool "Rockchip recovery for linux"
+        select BR2_PACKAGE_LIBDRM
+	help
+	  Rockchip recovery for linux.
