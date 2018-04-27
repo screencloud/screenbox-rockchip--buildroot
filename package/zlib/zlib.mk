@@ -71,6 +71,7 @@ endif
 
 define HOST_ZLIB_INSTALL_CMDS
 	$(MAKE1) -C $(@D) LDCONFIG=true install
+        $(INSTALL) -D -m 755 $(@D)/minigzip $(HOST_DIR)/usr/bin/minigzip
 endef
 
 $(eval $(generic-package))
