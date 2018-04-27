@@ -1,0 +1,7 @@
+config BR2_PACKAGE_HOST_MKBOOTFS
+	bool "host mkbootfs"
+	help
+	  Easily create ramdisk for Android recovery.
+
+	  This tool is bundled by, and specific to Buildroot. However, it can
+	  be used from post-images scripts is needed.
