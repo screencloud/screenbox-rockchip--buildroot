@@ -33,4 +33,14 @@ define RECOVERY_BUILD_CMDS
 		$(RECOVERY_MAKE_OPTS)
 endef
 
+define RECOVERY_INSTALL_TARGET_CMDS
+        $(INSTALL) -D -m 755 $(@D)/recovery $(TARGET_DIR)/usr/bin/
+endef
+
+define RECOVERY_IMAGE_PACK
+	$(HOST_DIR)/usr/bin/mkbootfs $(TARGET_DIR) | $(HOST_DIR)/usr/bin/minigzip > $(BINARIES_DIR)/ramdisk-recovery.img
+endef
+
+TARGET_FINALIZE_HOOKS += RECOVERY_IMAGE_PACK
+
 $(eval $(autotools-package))
