@@ -64,4 +64,5 @@ source "package/rockchip/rockchip_test/Config.in"
 source "package/rockchip/dialserver/Config.in"
 source "package/rockchip/linux-rga/Config.in"
 source "package/rockchip/recovery/Config.in"
+source "package/rockchip/update/Config.in"
 endif
