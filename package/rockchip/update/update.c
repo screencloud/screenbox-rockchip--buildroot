@@ -25,6 +25,7 @@
 //#include <io.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/reboot.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -35,9 +36,9 @@
 #define LOG_FILE_PATH "/tmp/recovery/log"
 #define COMMAND_FILE_PATH "/tmp/recovery/command"
 #else
-#define RECOVERY_PATH "/cache/recovery"
-#define LOG_FILE_PATH "/cache/recovery/log"
-#define COMMAND_FILE_PATH "/cache/recovery/command"
+#define RECOVERY_PATH "/data/recovery"
+#define LOG_FILE_PATH "/data/recovery/log"
+#define COMMAND_FILE_PATH "/data/recovery/command"
 #endif
 #define SD_UPDATE_FILE "/sdcard/update.img"
 #define DATA_UPDATE_FILE "/data/update.img"
@@ -71,9 +72,10 @@ static void bootCommand(char *arg){
  	fwrite(blank, LOG_FILE_LEN, 1, log_file);
  	fclose(log_file);
 	printf("update: reboot!\n");
- 	//reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
+	//reboot(LINUX_REBOOT_MAGIC1, LINUX_REBOOT_MAGIC2,
 	//       LINUX_REBOOT_CMD_RESTART2, "recovery");
- 		
+	sync();
+	reboot(RB_AUTOBOOT);
 	return;
 }
 
@@ -105,7 +107,7 @@ static void sdUpdate(){
 	installPackage(SD_UPDATE_FILE);
 }
 
-static void cacheUpdate(){
+static void dataUpdate(){
 	installPackage(DATA_UPDATE_FILE);
 }
 
