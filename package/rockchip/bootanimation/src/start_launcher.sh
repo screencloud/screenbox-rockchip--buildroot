@@ -12,7 +12,7 @@ echo "url: $url"
 #bootid=`ps |grep bootanimation | busybox awk '{ print $2 }'`
 killall  bootanimation
 
-mpv -vo=gpu -gpu-context=drm -hwdec=rkmpp -cache-secs=10 -demuxer-seekable-cache=no $url
+mpv -vo=gpu -gpu-context=drm -hwdec=rkmpp -cache-secs=10 -demuxer-seekable-cache=no -hwdec-codecs="h264,hevc,mpeg2video,mpeg4,vp8,vp9" $url
 
 bootanimation &
 
