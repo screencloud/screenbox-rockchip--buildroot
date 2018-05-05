@@ -93,6 +93,7 @@ typedef struct
 
 struct armsoc_bo mList[JPEG_OUTPUT_BUF_CNT];
 // ---------------------------------------------------------------------------
+static int m_next_frame_time = 16;
 static int m_thread_run = 0;
 int tmpCnt=0;
 int bufCnt = JPEG_OUTPUT_BUF_CNT;
@@ -190,29 +191,6 @@ static int drm_get_curActiveResolution(int drm_fd, int* width, int* height){
         *height = drm_mode.vdisplay;
     }
     return ret;
-}
-
-static int transform_buf(int drmFd, int width, int height, int phy_addr, struct armsoc_bo* bo) {
-    struct drm_mode_create_dumb dmcb;
-    struct drm_prime_handle dph;
-    struct drm_mode_map_dumb dmmd = { 0, };
-    uint32_t handles[4], pitches[4], offsets[4];
-    uint32_t gem_handle;
-    int ret;
-
-    drmPrimeFDToHandle(drmFd, phy_addr, &gem_handle);
-    memset(bo, 0, sizeof(struct armsoc_bo));
-    bo->width = width;
-    bo->pitch = width;
-    bo->height = height;
-    bo->format = DRM_FORMAT_ARGB8888;
-    handles[0] = gem_handle;
-    pitches[0] = width;
-    offsets[0] = 0;
-    ret = drmModeAddFB2(drmFd, bo->width, bo->height, DRM_FORMAT_ARGB8888,
-            handles, pitches, offsets, &bo->fb_id, 0);
-
-
 }
 
 static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
@@ -385,28 +363,7 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
     return ret;
 }
 
-static int drm_free(int fd, unsigned int handle)
-{
-    int ret = 0;
-    struct drm_mode_destroy_dumb data = {
-        .handle = handle,
-    };
-    struct drm_gem_close arg;
-
-    ret = drmIoctl(fd, DRM_IOCTL_MODE_DESTROY_DUMB, &data);
-    if (ret)
-        return -errno;
-
-    memset(&arg, 0, sizeof(arg));
-    arg.handle = handle;
-    ret = drmIoctl(fd, DRM_IOCTL_GEM_CLOSE, &arg);
-    if (ret)
-        return -errno;
-
-    return 0;
-}
-
-    struct armsoc_bo *
+struct armsoc_bo *
 bo_create_dumb(int fd, unsigned int width, unsigned int height, unsigned int bpp)
 {
     struct drm_mode_create_dumb arg;
@@ -476,9 +433,10 @@ void bo_unmap(struct armsoc_bo *bo)
     bo->ptr = NULL;
 }
 
-void bo_destroy(struct armsoc_bo *bo)
+int bo_destroy(struct armsoc_bo *bo)
 {
     struct drm_mode_destroy_dumb arg;
+    struct drm_gem_close data;
     int ret;
 
     if (bo->fb_id) {
@@ -494,6 +452,12 @@ void bo_destroy(struct armsoc_bo *bo)
         fprintf(stderr, "failed to destroy dumb buffer: %s fd=0x%x\n",
                 strerror(errno), bo->fd);
 
+    memset(&data, 0, sizeof(data));
+    data.handle = bo->handle;
+    ret = drmIoctl(bo->fd, DRM_IOCTL_GEM_CLOSE, &data);
+    if (ret)
+        return -errno;
+    return ret;
     //free(bo);
 }
 
@@ -818,13 +782,13 @@ void* bootAnimation(void* parm)
 
     do {
         for (int j=0;j<mImageCount;j++) {
-            char picPath[128];
+			int pathSize = 128;
+            char* picPath = (char*)calloc(1, pathSize);
             int displayWidth=0,displayHeight=0;
 
             sprintf(picPath, "%s/%d.jpg",mBootAnimPath,j);
             jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);
             if (displayWidth ==0 || displayHeight == 0){
-                memset(picPath, 0, sizeof(picPath));
                 sprintf(picPath, "%s/%d.jpeg",mBootAnimPath,j);
                 jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);
             }
@@ -883,6 +847,9 @@ void* bootAnimation(void* parm)
                 }
 #endif
             }
+			if (picPath)
+				free(picPath);
+            usleep(m_next_frame_time * 1000);
         }
     } while (m_thread_run);
 
@@ -895,8 +862,6 @@ void* bootAnimation(void* parm)
         memset(&mSfJpegBufInfo[i].bo, 0, sizeof(struct armsoc_bo));
     }
     drm_free();
-    //hw_jpeg_release_jpeg_pool(outInfo.memPool, bufCnt);
-    //hw_jpeg_release_jpeg_pool(outInfo.inputPool, bufCnt);
     return 0;
 }
 
@@ -907,7 +872,11 @@ int main(int argc, char** argv)
     int drm_fd = 0;
     int ret=-1;
     FILE* cfg_file = fopen(BOOT_ANIMATION_CONFIG_FILE, "rb");
+    int mFps=50;
+    if (argc > 1)
+        mFps = atoi(argv[1]);
 
+    m_next_frame_time = 1000 / mFps;
     drm_fd = open("/dev/dri/card0", O_RDWR);
     if (drm_fd < 0)
         printf("Failed to open dri 0 \n");
