@@ -30,17 +30,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#ifdef HW_JPEG
-#include "vpu_global.h"
-#include "vpu_mem_pool.h"
-#include "hw_jpegdecapi.h"
-#include "SkHwJpegUtility.h"
-#endif
+
 #include <sys/time.h>
 
 #include "drm_common.h"
 using namespace std;
-
 
 #define BOOT_ANIMATION_CONFIG_FILE "/mnt/bootanimation/boot.conf"
 
@@ -85,13 +79,12 @@ typedef struct
 
 typedef struct
 {
-    struct armsoc_bo bo;
+    struct armsoc_bo* bo;
 }SfJpegOutputBuf;
 
 #define JPEG_OUTPUT_BUF_CNT 6
 #define MAX_OUTPUT_RSV_CNT 4
 
-struct armsoc_bo mList[JPEG_OUTPUT_BUF_CNT];
 // ---------------------------------------------------------------------------
 static int m_next_frame_time = 16;
 static int m_thread_run = 0;
@@ -99,12 +92,8 @@ int tmpCnt=0;
 int bufCnt = JPEG_OUTPUT_BUF_CNT;
 static int mImageCount = 0;
 char mBootAnimPath[128];
-HwJpegOutputBuf mOutputBufHandle[MAX_OUTPUT_RSV_CNT];
 SfJpegOutputBuf mSfJpegBufInfo[MAX_OUTPUT_RSV_CNT];
-#ifdef HW_JPEG
-HwJpegOutputInfo outInfo;
-HwJpegInputInfo hwInfo;
-#endif
+
 static int drm_init(int drmFd) {
     int i, ret;
 
@@ -158,7 +147,7 @@ static bool drmmode_getproperty(int drmFd, uint32_t obj_id, uint32_t obj_type, s
                 value = p->blob_ids[0];
             blob = drmModeGetPropertyBlob(drmFd, value);
             if (!blob) {
-                printf("%s:line=%d, blob is null",__FUNCTION__,__LINE__);
+                printf("%s:line=%d, blob is null\n",__FUNCTION__,__LINE__);
                 drmModeFreeProperty(p);
                 drmModeFreeObjectProperties(props);
                 return false;
@@ -183,12 +172,16 @@ static bool drmmode_getproperty(int drmFd, uint32_t obj_id, uint32_t obj_type, s
 static int drm_get_curActiveResolution(int drm_fd, int* width, int* height){
     struct mdrm_mode_modeinfo drm_mode;
     int ret=-1;
-    //drmModeEncoder *g_drm_encoder = NULL;
-    //g_drm_encoder = drm_get_encoder(drm_fd);
+
     if (g_drm_encoder != NULL) {
         ret = drmmode_getproperty(drm_fd, g_drm_encoder->crtc_id, DRM_MODE_OBJECT_CRTC, &drm_mode);
-        *width = drm_mode.hdisplay;
-        *height = drm_mode.vdisplay;
+        if (ret == true) {
+            *width = drm_mode.hdisplay;
+            *height = drm_mode.vdisplay;
+        } else {
+            *width = 1280;
+            *height = 720;
+        }
     }
     return ret;
 }
@@ -200,7 +193,6 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
     drmModeResPtr res;
     drmModeCrtcPtr crtc = NULL;
     drmModeObjectPropertiesPtr props;
-    drmModePropertyPtr prop;
     drmModeAtomicReq *req;
     struct plane_prop plane_prop;
     int i, ret;
@@ -225,14 +217,12 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
      */
     for (i = 0; i < res->count_crtcs; ++i) {
         uint32_t j;
-
         crtc = drmModeGetCrtc(drm_fd, res->crtcs[i]);
         if (!crtc) {
             printf("Could not get crtc %u: %s\n",
                     res->crtcs[i], strerror(errno));
             continue;
         }
-
         props = drmModeObjectGetProperties(drm_fd, crtc->crtc_id,
                 DRM_MODE_OBJECT_CRTC);
         if (!props) {
@@ -241,21 +231,28 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
             continue;
         }
         for (j = 0; j < props->count_props; j++) {
+            drmModePropertyPtr prop;
             prop = drmModeGetProperty(drm_fd, props->props[j]);
             if (!strcmp(prop->name, "ACTIVE")) {
                 if (props->prop_values[j]) {
                     //printf("found active crtc %d\n", crtc->crtc_id);
                     found_crtc = 1;
+                    drmModeFreeProperty(prop);
                     break;
                 }
             }
+            drmModeFreeProperty(prop);
         }
-
+        if (props)
+            drmModeFreeObjectProperties(props);
         if (found_crtc)
             break;
         drmModeFreeCrtc(crtc);
     }
+
     if (!crtc) {
+        if (props)
+            drmModeFreeObjectProperties(props);
         printf("failed to find usable crtc props\n");
         return -ENODEV;
     }
@@ -285,16 +282,19 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
     if (!props) {
         printf("failed to found props plane[%d] %s\n",
                 plane->plane_id, strerror(errno));
-        if (crtc)
-            drmModeFreeCrtc(crtc);
         if (plane)
             drmModeFreePlane(plane);
-        if (res)
-            drmModeFreeResources(res);
+        if (plane_res)
+            drmModeFreePlaneResources(plane_res);
+        if (props)
+            drmModeFreeObjectProperties(props);
+        if (crtc)
+            drmModeFreeCrtc(crtc);
         return -ENODEV;
     }
     memset(&plane_prop, 0, sizeof(struct plane_prop));
     for (i = 0; i < props->count_props; i++) {
+        drmModePropertyPtr prop;
         prop = drmModeGetProperty(drm_fd, props->props[i]);
         if (!strcmp(prop->name, "CRTC_ID"))
             plane_prop.crtc_id = prop->prop_id;
@@ -316,8 +316,8 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
             plane_prop.crtc_w = prop->prop_id;
         else if (!strcmp(prop->name, "CRTC_H"))
             plane_prop.crtc_h = prop->prop_id;
-        else
-            continue;
+
+        drmModeFreeProperty(prop);
         //xf86DrvMsg(-1, X_WARNING, "prop[%d] = %d\n", i, prop->prop_id);
     }
     drm_get_curActiveResolution(drm_fd, &crtc_w, &crtc_h);
@@ -363,7 +363,7 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
     return ret;
 }
 
-struct armsoc_bo *
+    struct armsoc_bo *
 bo_create_dumb(int fd, unsigned int width, unsigned int height, unsigned int bpp)
 {
     struct drm_mode_create_dumb arg;
@@ -453,10 +453,11 @@ int bo_destroy(struct armsoc_bo *bo)
                 strerror(errno), bo->fd);
 
     memset(&data, 0, sizeof(data));
-    data.handle = bo->handle;
-    ret = drmIoctl(bo->fd, DRM_IOCTL_GEM_CLOSE, &data);
-    if (ret)
-        return -errno;
+    /*
+       data.handle = bo->handle;
+       ret = drmIoctl(bo->fd, DRM_IOCTL_GEM_CLOSE, &data);
+       if (ret)
+       return -errno;*/
     return ret;
     //free(bo);
 }
@@ -573,82 +574,6 @@ bo_create(int fd, unsigned int format,
     return bo;
 }
 
-#ifdef HW_JPEG
-int hwjpeg_decode(char* data, int size)
-{
-    size_t len = size;
-    SkMemoryStream stream(data,size,false);
-    //SkJpegVPUMemStream vpuStream(&stream, &len);	
-    //HwJpegInputInfo hwInfo;
-    sk_hw_jpeg_source_mgr sk_hw_stream(&stream,&hwInfo,false);
-    //sk_hw_jpeg_source_mgr sk_hw_stream(&vpuStream,&hwInfo,true);
-    VPUMemLinear_t pOutMem;
-    HwJpegOutputDisplayInfo mdisplayInfo;
-
-    hwInfo.justcaloutwh = 0;
-    hwInfo.streamCtl.inStream = &sk_hw_stream;
-    hwInfo.streamCtl.wholeStreamLength = stream.getLength();// > 64M? break;
-    hwInfo.streamCtl.thumbOffset = -1;
-    hwInfo.streamCtl.thumbLength = -1;
-    hwInfo.streamCtl.useThumb = 0;
-
-    ReusePmem thumbPmem;
-    thumbPmem.reuse = 0;
-
-    //memset(&outInfo,0,sizeof(outInfo));
-    outInfo.thumbPmem = &thumbPmem;
-    outInfo.outAddr = NULL;
-    outInfo.outHeight = 0;
-    outInfo.outWidth = 0;
-    outInfo.ppscaleh = 0;
-    outInfo.ppscalew = 0;
-
-    PostProcessInfo * ppInfo = &hwInfo.ppInfo;
-    ppInfo->outFomart = PP_OUT_FORMAT_ARGB;//PP_OUT_FORMAT_ARGB;//PP_OUT_FORMAT_YUV422INTERLAVE;//PP_OUT_FORMAT_YUV420INTERLAVE;//PP_OUT_FORMAT_YUV444PLANAR
-    ppInfo->shouldDither = 0;
-    ppInfo->scale_denom = 1;
-    ppInfo->cropX = 0;
-    ppInfo->cropY = 0;
-    ppInfo->cropW = -1;
-    ppInfo->cropH = -1;
-
-    int ret = -1;  
-    char reuseBitmap = 0;
-
-    memset(&mdisplayInfo, 0, sizeof(HwJpegOutputDisplayInfo));
-    memset(&pOutMem, 0, sizeof(VPUMemLinear_t));
-
-    if (hw_jpeg_pre_init(&hwInfo, &mdisplayInfo) == 0) {
-        printf("bufWidth=%d, bufHeight=%d outFomart=%d mdisplayInfo->size=%d", 
-                mdisplayInfo.bufWidth, mdisplayInfo.bufHeight, hwInfo.ppInfo.outFomart, mdisplayInfo.size);
-        /****创建一个线程池*******/
-        if (mdisplayInfo.bufWidth > 0 && mdisplayInfo.bufHeight > 0 && mdisplayInfo.size > 0)
-            outInfo.memPool = hw_jpeg_create_jpeg_memPool(mdisplayInfo.size, bufCnt);
-
-    }
-    ret = hw_jpeg_decode(&hwInfo,&outInfo, &reuseBitmap, mdisplayInfo.displayWidth, mdisplayInfo.displayWidth);
-    if (ret >= 0) {
-        FILE* bgraFile = fopen("/mnt/sdcard/output.argb", "wb");
-        if (bgraFile && tmpCnt == 0) {
-            tmpCnt++;
-            fwrite(outInfo.outAddr, 1, mdisplayInfo.size, bgraFile);
-            printf("fwrite %d bytes", mdisplayInfo.size);
-            hw_jpeg_release(outInfo.decoderHandle);
-            outInfo.decoderHandle = NULL;
-        }
-    } else {
-        printf("hw_jpeg_decode failed *************");
-    }
-
-    if (outInfo.decoderHandle) {
-        hw_jpeg_release(outInfo.decoderHandle);
-        outInfo.decoderHandle = NULL;
-    }
-    stream = NULL;
-    return ret;
-}
-#endif
-
 static void jpeg_get_displayinfo(char* path, int* width, int* height)
 {
     struct jpeg_decompress_struct cinfo;
@@ -708,7 +633,7 @@ static int jpeg_sf_decode(char* path, char* output)
     //cinfo.out_color_space = JCS_YCbCr;
     //cinfo.raw_data_out = true;
     jpeg_start_decompress(&cinfo);
-#ifdef JPEG_DEBUG
+#if 1
     printf("cinfo.image_width=%d cinfo.image_height=%d cinfo.jpeg_color_space=%d output-%p\n", 
             cinfo.image_width, cinfo.image_height, cinfo.jpeg_color_space, output);
     printf("cinfo.output_width=%d cinfo.output_height=%d cinfo.bytesPerPix=%d\n", 
@@ -781,27 +706,32 @@ void* bootAnimation(void* parm)
     int mFrameNum = 0;
 
     do {
+        int pathSize = 128;
+        char* picPath = (char*)calloc(1, pathSize);
+        int displayWidth=0,displayHeight=0;
+        uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
         for (int j=0;j<mImageCount;j++) {
-			int pathSize = 128;
-            char* picPath = (char*)calloc(1, pathSize);
-            int displayWidth=0,displayHeight=0;
-
+            memset(picPath, 0, pathSize);
+            displayWidth=displayHeight=0;
             sprintf(picPath, "%s/%d.jpg",mBootAnimPath,j);
             jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);
+            printf("open %s w=%d h=%d\n", mBootAnimPath, displayWidth, displayHeight);
             if (displayWidth ==0 || displayHeight == 0){
                 sprintf(picPath, "%s/%d.jpeg",mBootAnimPath,j);
                 jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);
             }
+
             if (displayWidth !=0 && displayHeight != 0) {
                 struct armsoc_bo* bo=NULL;
-                struct armsoc_bo tmpBo;
-                uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
+                struct armsoc_bo* tmpBo=NULL;
 
                 tmpBo = mSfJpegBufInfo[MAX_OUTPUT_RSV_CNT-1].bo;
-                if (tmpBo.fd != 0 && tmpBo.ptr != NULL) {
-                    bo_unmap(&tmpBo);
-                    bo_destroy(&tmpBo);
-                    memset(&mSfJpegBufInfo[MAX_OUTPUT_RSV_CNT-1].bo, 0, sizeof(tmpBo));
+                if (tmpBo && tmpBo->fd != 0 && tmpBo->ptr != NULL) {
+                    bo_unmap(tmpBo);
+                    bo_destroy(tmpBo);
+                    free(tmpBo);
+                    mSfJpegBufInfo[MAX_OUTPUT_RSV_CNT-1].bo = NULL;
+                    tmpBo = NULL;
                 }
                 bo = bo_create(*drm_fd, DRM_FORMAT_RGB888, displayWidth, displayHeight);
                 jpeg_sf_decode(picPath, (char*)bo->ptr);
@@ -814,52 +744,28 @@ void* bootAnimation(void* parm)
                     break;
                 }
                 ctx_drm_display(*drm_fd, bo, 0, 0);
-                memcpy(&mSfJpegBufInfo[0].bo ,bo, sizeof(*bo));
+                mSfJpegBufInfo[0].bo = bo;
                 for (int tmp=MAX_OUTPUT_RSV_CNT-1;tmp>0;tmp--) {
-                    //mSfJpegBufInfo[tmp].bo = mSfJpegBufInfo[tmp-1].bo;
-                    memcpy(&mSfJpegBufInfo[tmp].bo ,&mSfJpegBufInfo[tmp-1].bo, sizeof(*bo));
+                    mSfJpegBufInfo[tmp].bo = mSfJpegBufInfo[tmp-1].bo;
                 }
-                memset(&mSfJpegBufInfo[0].bo, 0, sizeof(tmpBo));
-                if (bo)
-                    free(bo);
-#if 0				
-                ret = hwjpeg_decode((char*)mList[mFrameNum].map_addr, mFileSize);
-                if (ret >= 0) {
-                    struct armsoc_bo* bo=NULL;
-                    if (mOutputBufHandle[MAX_OUTPUT_RSV_CNT-1].decoderHandle != NULL) {
-                        hw_jpeg_release(mOutputBufHandle[k].decoderHandle);
-                        mOutputBufHandle[MAX_OUTPUT_RSV_CNT-1].decoderHandle = NULL;
-                        mOutputBufHandle[MAX_OUTPUT_RSV_CNT-1].outAddr = NULL;
-                        mOutputBufHandle[MAX_OUTPUT_RSV_CNT-1].phyAddr = 0;
-                    }
-                    mOutputBufHandle[0].phyAddr = hw_jpeg_getBufFd(outInfo.decoderHandle);
-                    mOutputBufHandle[0].decoderHandle = outInfo.decoderHandle;
-                    transform_buf(*drm_fd, outInfo.outWidth, outInfo.outHeight, mOutputBufHandle[0].phyAddr, &bo);
-                    ctx_drm_display(*drm_fd, &bo,0,0);
-                    for (int tmp=MAX_OUTPUT_RSV_CNT-1;tmp>0;tmp--) {
-                        mOutputBufHandle[tmp].phyAddr = mOutputBufHandle[tmp-1].phyAddr
-                            mOutputBufHandle[tmp].decoderHandle = mOutputBufHandle[tmp-].decoderHandle;
-                        mOutputBufHandle[tmp].outAddr = mOutputBufHandle[tmp-].outAddr;
-                    }
-                    mFrameNum ++;
-                    if (mFrameNum > 4)
-                        mFrameNum = 0;
-                }
-#endif
+                mSfJpegBufInfo[0].bo = NULL;
+
             }
-			if (picPath)
-				free(picPath);
             usleep(m_next_frame_time * 1000);
+        }
+        if (picPath) {
+            free(picPath);
+            picPath = NULL;
         }
     } while (m_thread_run);
 
     for (int i=0;i<MAX_OUTPUT_RSV_CNT;i++) {
-        if (mSfJpegBufInfo[i].bo.fd != 0 && mSfJpegBufInfo[i].bo.ptr != NULL) {
-            printf("release drm res:i=%d fd=0x%x fb_id=0x%x ptr=%p addr=%p\n", i, mSfJpegBufInfo[i].bo.fd, mSfJpegBufInfo[i].bo.fb_id, mSfJpegBufInfo[i].bo.ptr, &mSfJpegBufInfo[i].bo);
-            bo_unmap(&mSfJpegBufInfo[i].bo);
-            bo_destroy(&(mSfJpegBufInfo[i].bo));
+        if (mSfJpegBufInfo[i].bo->fd != 0 && mSfJpegBufInfo[i].bo->ptr != NULL) {
+            printf("release drm res:i=%d fd=0x%x fb_id=0x%x ptr=%p addr=%p\n", i, mSfJpegBufInfo[i].bo->fd, mSfJpegBufInfo[i].bo->fb_id, mSfJpegBufInfo[i].bo->ptr, mSfJpegBufInfo[i].bo);
+            bo_unmap(mSfJpegBufInfo[i].bo);
+            bo_destroy((mSfJpegBufInfo[i].bo));
+            mSfJpegBufInfo[i].bo = NULL;
         }
-        memset(&mSfJpegBufInfo[i].bo, 0, sizeof(struct armsoc_bo));
     }
     drm_free();
     return 0;
@@ -906,9 +812,9 @@ int main(int argc, char** argv)
         sprintf(mBootAnimPath, "%s", path);
         fclose(cfg_file);
         if (mImageCount <= 0)
-            mImageCount = 3;
+            mImageCount = 4;
     } else {
-        mImageCount = 3;
+        mImageCount = 4;
         char* tmp = "/media/bootanimation";
         sprintf(mBootAnimPath, "%s", tmp);
     }

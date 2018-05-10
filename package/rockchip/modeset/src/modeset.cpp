@@ -358,38 +358,64 @@ static int resolve_connectors(int drm_fd, drmModeRes *res, uint32_t *con_ids)
 }
 
 static void setMode(int drmFd, int modeid){
-	if (g_drm_connector != NULL && g_drm_encoder != 0) {
-		drmModeAtomicReq *req;
-		uint32_t blob_id=0;
-		int ret;
-		int property_crtc_id,mode_property_id,active_property_id;
-		
-		req = drmModeAtomicAlloc();
-		#define DRM_ATOMIC_ADD_PROP(object_id, prop_id, value) \
-			ret = drmModeAtomicAddProperty(req, object_id, prop_id, value); \
-			printf("object[%d] = %d\n", object_id, value); \
-			if (ret < 0) \
-			printf("Failed to add prop[%d] to [%d]", value, object_id);
+	uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
+	unsigned int fb_id;
+	struct armsoc_bo *bo;
+	unsigned int i;
+	unsigned int j;
+	int ret, x;
+	uint32_t num_cons;
+	drmModeAtomicReq *req;
+	uint32_t blob_id=0;
+	int property_crtc_id,mode_property_id,active_property_id;
+	drmModeCrtcPtr crtc;
+	drmModeModeInfo *drm_mode = NULL;
+	drmModeEncoder *drm_encoder  = NULL;
+	drmModeRes *g_resources = g_drm_resources;
 
-		if (modeid < g_drm_connector->count_modes)
-			g_drm_mode = &g_drm_connector->modes[modeid];
+	num_cons = g_resources->count_connectors;
+
+	if (modeid < g_drm_connector->count_modes)
+		drm_mode = &g_drm_connector->modes[modeid];
+	else
+		drm_mode = &g_drm_connector->modes[0];
+	if (g_resources->count_crtcs > 1) {
+		if (g_drm_connector->encoder_id == 0 && 
+		    g_drm_connector->connector_type == DRM_MODE_CONNECTOR_HDMIA)
+			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
+		else if(g_drm_connector->encoder_id == 0)
+			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[1]);
 		else
-			g_drm_mode = &g_drm_connector->modes[0];
-
-		g_connector_id = g_drm_connector->connector_id;
-		g_crtc_id = g_drm_encoder->crtc_id;
-
-		ret = CreatePropertyBlob(g_drm_mode, sizeof(*g_drm_mode), &blob_id, drmFd);
-        property_crtc_id = drmmode_getproperty(drmFd, g_connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
-        DRM_ATOMIC_ADD_PROP(g_connector_id, property_crtc_id, g_crtc_id);
-        mode_property_id = drmmode_getproperty(drmFd, g_crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
-        DRM_ATOMIC_ADD_PROP(g_crtc_id, mode_property_id, blob_id);
-        active_property_id = drmmode_getproperty(drmFd, g_crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
-        DRM_ATOMIC_ADD_PROP(g_crtc_id, active_property_id, 1);
-		ret = drmModeAtomicCommit(drmFd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL);
-	    drmModeAtomicFree(req);
+			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
+	} else {
+		crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);;
 	}
-	
+
+	req = drmModeAtomicAlloc();
+	#define DRM_ATOMIC_ADD_PROP(object_id, prop_id, value) \
+		ret = drmModeAtomicAddProperty(req, object_id, prop_id, value); \
+		printf("object[%d] = %d\n", object_id, value); \
+		if (ret < 0) \
+		printf("Failed to add prop[%d] to [%d]", value, object_id);
+
+	if (modeid < g_drm_connector->count_modes)
+		g_drm_mode = &g_drm_connector->modes[modeid];
+	else
+		g_drm_mode = &g_drm_connector->modes[0];
+
+	g_connector_id = g_drm_connector->connector_id;
+
+	ret = CreatePropertyBlob(g_drm_mode, sizeof(*g_drm_mode), &blob_id, drmFd);
+    property_crtc_id = drmmode_getproperty(drmFd, g_connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
+    DRM_ATOMIC_ADD_PROP(g_connector_id, property_crtc_id, crtc->crtc_id);
+    mode_property_id = drmmode_getproperty(drmFd, crtc->crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
+    DRM_ATOMIC_ADD_PROP(crtc->crtc_id, mode_property_id, blob_id);
+    active_property_id = drmmode_getproperty(drmFd, crtc->crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
+    DRM_ATOMIC_ADD_PROP(crtc->crtc_id, active_property_id, 1);
+	ret = drmModeAtomicCommit(drmFd, req, DRM_MODE_ATOMIC_ALLOW_MODESET | DRM_MODE_PAGE_FLIP_EVENT, NULL);
+    drmModeAtomicFree(req);
+	if (crtc)
+        drmModeFreeCrtc(crtc);
 }
 
 static void set_crtc_mode(int drmFd, int modeid)
@@ -470,10 +496,14 @@ int main(int argc, char** argv)
     if (drm_fd < 0)
         printf("Failed to open dri 0 =%s\n", strerror(errno));
     drm_init(drm_fd);
+#if 0
 	if (g_drm_encoder != NULL)
 		setMode(drm_fd, modeid);
 	else
 		set_crtc_mode(drm_fd, modeid);
+#else
+	setMode(drm_fd, modeid);	
+#endif
 	drm_free();
 
     return 0;
