@@ -32,9 +32,16 @@
 #include <unistd.h>
 #include <sys/time.h>
 
+#include <linux/netlink.h>
+#include <sys/socket.h>
+
 #include "drm_common.h"
 using namespace std;
 
+fd_set fds;
+int max_fd = -1;
+int uevent_fd = 0;
+int mode_id=0;
 
 struct mdrm_mode_modeinfo {
     __u32 clock;
@@ -57,12 +64,12 @@ struct mdrm_mode_modeinfo {
 };
 struct bo
 {
-	int fd;
-	void *ptr;
-	size_t size;
-	size_t offset;
-	size_t pitch;
-	unsigned handle;
+    int fd;
+    void *ptr;
+    size_t size;
+    size_t offset;
+    size_t pitch;
+    unsigned handle;
 };
 
     struct armsoc_bo *
@@ -156,7 +163,7 @@ void bo_destroy(struct armsoc_bo *bo)
     //free(bo);
 }
 
-struct armsoc_bo *
+    struct armsoc_bo *
 bo_create(int fd, unsigned int format,
         unsigned int width, unsigned int height)
 {
@@ -294,7 +301,7 @@ static int drm_init(int drmFd) {
         return -1;
 }
 
-static int
+    static int
 drmmode_getproperty(int drmFd, uint32_t obj_id, uint32_t obj_type, const char *prop_name)
 {
     int property_id=-1;
@@ -307,7 +314,7 @@ drmmode_getproperty(int drmFd, uint32_t obj_id, uint32_t obj_type, const char *p
         if (!strcmp(p->name, prop_name)) {
             property_id = p->prop_id;
             found = TRUE;
-			break;
+            break;
         }
         drmModeFreeProperty(p);
     }
@@ -335,176 +342,295 @@ static int CreatePropertyBlob(void *data, size_t length,
 
 static int resolve_connectors(int drm_fd, drmModeRes *res, uint32_t *con_ids)
 {
-	drmModeConnector *connector;
-	unsigned int i;
-	uint32_t id;
-	char *endp;
+    drmModeConnector *connector;
+    unsigned int i;
+    uint32_t id;
+    char *endp;
 
-	for (i = 0; (int)i < res->count_connectors; i++)
-	{
-	   drmModeConnectorPtr conn = drmModeGetConnector(
-			 drm_fd, res->connectors[i]);
-	
-	   if (conn)
-	   {
-		  bool connected = conn->connection == DRM_MODE_CONNECTED;
-		  con_ids[i] = conn->connector_id;
-		  printf("con_ids[%d]=%d \n", i, con_ids[i]);
-		  drmModeFreeConnector(conn);
-	   }
-	}
+    for (i = 0; (int)i < res->count_connectors; i++)
+    {
+        drmModeConnectorPtr conn = drmModeGetConnector(
+                drm_fd, res->connectors[i]);
 
-	return 0;
+        if (conn)
+        {
+            bool connected = conn->connection == DRM_MODE_CONNECTED;
+            con_ids[i] = conn->connector_id;
+            printf("con_ids[%d]=%d \n", i, con_ids[i]);
+            drmModeFreeConnector(conn);
+        }
+    }
+
+    return 0;
 }
 
-static void setMode(int drmFd, int modeid){
-	uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
-	unsigned int fb_id;
-	struct armsoc_bo *bo;
-	unsigned int i;
-	unsigned int j;
-	int ret, x;
-	uint32_t num_cons;
-	drmModeAtomicReq *req;
-	uint32_t blob_id=0;
-	int property_crtc_id,mode_property_id,active_property_id;
-	drmModeCrtcPtr crtc;
-	drmModeModeInfo *drm_mode = NULL;
-	drmModeEncoder *drm_encoder  = NULL;
-	drmModeRes *g_resources = g_drm_resources;
+static void setMode(int drmFd, int modeid, drmModeConnectorPtr conn){
+    uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
+    unsigned int fb_id;
+    struct armsoc_bo *bo;
+    unsigned int i;
+    unsigned int j;
+    int ret, x;
+    uint32_t num_cons;
+    drmModeAtomicReq *req;
+    uint32_t blob_id=0;
+    int property_crtc_id,mode_property_id,active_property_id;
+    drmModeCrtcPtr crtc;
+    drmModeModeInfo *drm_mode = NULL;
+    drmModeEncoder *drm_encoder  = NULL;
+    drmModeRes *g_resources = g_drm_resources;
+	uint32_t conn_id;
 
-	num_cons = g_resources->count_connectors;
+    num_cons = g_resources->count_connectors;
 
-	if (modeid < g_drm_connector->count_modes)
-		drm_mode = &g_drm_connector->modes[modeid];
-	else
-		drm_mode = &g_drm_connector->modes[0];
-	if (g_resources->count_crtcs > 1) {
-		if (g_drm_connector->encoder_id == 0 && 
-		    g_drm_connector->connector_type == DRM_MODE_CONNECTOR_HDMIA)
-			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
-		else if(g_drm_connector->encoder_id == 0)
-			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[1]);
-		else
-			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
-	} else {
-		crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);;
+    if (conn == NULL) {
+		return;
 	}
+    if (conn) {
+        if (modeid < conn->count_modes)
+            drm_mode = &conn->modes[modeid];
+        else
+            drm_mode = &conn->modes[0];
+        if (g_resources->count_crtcs > 1) {
+            if (conn->encoder_id == 0 && 
+                    conn->connector_type == DRM_MODE_CONNECTOR_HDMIA)
+                crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
+            else if(conn->encoder_id == 0)
+                crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[1]);
+            else
+                crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
+        } else {
+            crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);;
+        }
 
-	req = drmModeAtomicAlloc();
-	#define DRM_ATOMIC_ADD_PROP(object_id, prop_id, value) \
-		ret = drmModeAtomicAddProperty(req, object_id, prop_id, value); \
-		printf("object[%d] = %d\n", object_id, value); \
-		if (ret < 0) \
-		printf("Failed to add prop[%d] to [%d]", value, object_id);
+        req = drmModeAtomicAlloc();
+#define DRM_ATOMIC_ADD_PROP(object_id, prop_id, value) \
+        ret = drmModeAtomicAddProperty(req, object_id, prop_id, value); \
+        printf("setMode object[%d] = %d\n", object_id, value); \
+        if (ret < 0) \
+        printf("Failed to add prop[%d] to [%d]", value, object_id);
 
-	if (modeid < g_drm_connector->count_modes)
-		g_drm_mode = &g_drm_connector->modes[modeid];
-	else
-		g_drm_mode = &g_drm_connector->modes[0];
+        conn_id = conn->connector_id;
 
-	g_connector_id = g_drm_connector->connector_id;
+        ret = CreatePropertyBlob(drm_mode, sizeof(*drm_mode), &blob_id, drmFd);
+        property_crtc_id = drmmode_getproperty(drmFd, conn_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
+        DRM_ATOMIC_ADD_PROP(conn_id, property_crtc_id, crtc->crtc_id);
+        mode_property_id = drmmode_getproperty(drmFd, crtc->crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
+        DRM_ATOMIC_ADD_PROP(crtc->crtc_id, mode_property_id, blob_id);
+        active_property_id = drmmode_getproperty(drmFd, crtc->crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
+        DRM_ATOMIC_ADD_PROP(crtc->crtc_id, active_property_id, 1);
+        ret = drmModeAtomicCommit(drmFd, req, DRM_MODE_ATOMIC_ALLOW_MODESET | DRM_MODE_PAGE_FLIP_EVENT, NULL);
+        drmModeAtomicFree(req);
+        if (crtc)
+            drmModeFreeCrtc(crtc);
+    }
+}
 
-	ret = CreatePropertyBlob(g_drm_mode, sizeof(*g_drm_mode), &blob_id, drmFd);
-    property_crtc_id = drmmode_getproperty(drmFd, g_connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
-    DRM_ATOMIC_ADD_PROP(g_connector_id, property_crtc_id, crtc->crtc_id);
-    mode_property_id = drmmode_getproperty(drmFd, crtc->crtc_id, DRM_MODE_OBJECT_CRTC, "MODE_ID");
-    DRM_ATOMIC_ADD_PROP(crtc->crtc_id, mode_property_id, blob_id);
-    active_property_id = drmmode_getproperty(drmFd, crtc->crtc_id, DRM_MODE_OBJECT_CRTC, "ACTIVE");
-    DRM_ATOMIC_ADD_PROP(crtc->crtc_id, active_property_id, 1);
-	ret = drmModeAtomicCommit(drmFd, req, DRM_MODE_ATOMIC_ALLOW_MODESET | DRM_MODE_PAGE_FLIP_EVENT, NULL);
-    drmModeAtomicFree(req);
-	if (crtc)
-        drmModeFreeCrtc(crtc);
+static void updateModes(int fd)
+{
+    unsigned i;
+    unsigned monitor_index = 0;
+    bool isHdmiConnect=false;
+    /* Enumerate all connectors. */
+
+    printf("[DRM]: Found %d connectors.\n", g_drm_resources->count_connectors);
+
+    for (i = 0; (int)i < g_drm_resources->count_connectors; i++)
+    {
+        drmModeConnectorPtr conn = drmModeGetConnector(
+                fd, g_drm_resources->connectors[i]);
+
+        if (conn)
+        {
+            bool connected = conn->connection == DRM_MODE_CONNECTED;
+            printf("[DRM]: Connector %d connected: %s\n", i, connected ? "yes" : "no");
+            printf("[DRM]: Connector %d has %d modes.\n", i, conn->count_modes);
+            if (connected && conn->count_modes > 0)
+            {
+                monitor_index++;
+                isHdmiConnect=true;
+				setMode(fd, mode_id, conn);
+                printf("[DRM]: HDMI Connector %d assigned to monitor index: #%u.\n", i, monitor_index);
+            }
+            drmModeFreeConnector(conn);
+        }
+    }
+
 }
 
 static void set_crtc_mode(int drmFd, int modeid)
 {
-	uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
-	unsigned int fb_id;
-	struct armsoc_bo *bo;
-	unsigned int i;
-	unsigned int j;
-	int ret, x;
-	uint32_t* con_ids;
-	uint32_t num_cons;
-	drmModeCrtcPtr crtc;
-	drmModeModeInfo *drm_mode = NULL;
-	drmModeEncoder *drm_encoder  = NULL;
-	drmModeRes *g_resources = g_drm_resources;
+    uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
+    unsigned int fb_id;
+    struct armsoc_bo *bo;
+    unsigned int i;
+    unsigned int j;
+    int ret, x;
+    uint32_t* con_ids;
+    uint32_t num_cons;
+    drmModeCrtcPtr crtc;
+    drmModeModeInfo *drm_mode = NULL;
+    drmModeEncoder *drm_encoder  = NULL;
+    drmModeRes *g_resources = g_drm_resources;
 
-	num_cons = g_resources->count_connectors;
-	con_ids = (uint32_t*)calloc(num_cons, sizeof(*con_ids));
-	resolve_connectors(drmFd, g_resources, con_ids);
+    num_cons = g_resources->count_connectors;
+    con_ids = (uint32_t*)calloc(num_cons, sizeof(*con_ids));
+    resolve_connectors(drmFd, g_resources, con_ids);
 
-	if (modeid < g_drm_connector->count_modes)
-		drm_mode = &g_drm_connector->modes[modeid];
-	else
-		drm_mode = &g_drm_connector->modes[0];
-	if (g_resources->count_crtcs > 1) {
-		if (g_drm_connector->encoder_id == 0 && 
-		    g_drm_connector->connector_type == DRM_MODE_CONNECTOR_HDMIA)
-			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
-		else if(g_drm_connector->encoder_id == 0)
-			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[1]);
-		else
-			crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
-	} else {
-		crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);;
-	}
+    if (modeid < g_drm_connector->count_modes)
+        drm_mode = &g_drm_connector->modes[modeid];
+    else
+        drm_mode = &g_drm_connector->modes[0];
+    if (g_resources->count_crtcs > 1) {
+        if (g_drm_connector->encoder_id == 0 && 
+                g_drm_connector->connector_type == DRM_MODE_CONNECTOR_HDMIA)
+            crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
+        else if(g_drm_connector->encoder_id == 0)
+            crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[1]);
+        else
+            crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);
+    } else {
+        crtc = drmModeGetCrtc(drmFd, g_resources->crtcs[0]);;
+    }
 
-	bo = bo_create(drmFd, DRM_FORMAT_ARGB8888, drm_mode->hdisplay,
-		       drm_mode->vdisplay);
-	offsets[0] = 0;
-	handles[0] = bo->handle;
-	pitches[0] = bo->pitch;
+    bo = bo_create(drmFd, DRM_FORMAT_ARGB8888, drm_mode->hdisplay,
+            drm_mode->vdisplay);
+    offsets[0] = 0;
+    handles[0] = bo->handle;
+    pitches[0] = bo->pitch;
 
-	ret = drmModeAddFB2(drmFd, drm_mode->hdisplay, drm_mode->vdisplay,
-			    DRM_FORMAT_ARGB8888, handles, pitches, offsets, &fb_id, 0);
-	if (ret) {
-		fprintf(stderr, "failed to add fb (%ux%u): %s\n",
-			drm_mode->hdisplay, drm_mode->vdisplay, strerror(errno));
-		return;
-	}
+    ret = drmModeAddFB2(drmFd, drm_mode->hdisplay, drm_mode->vdisplay,
+            DRM_FORMAT_ARGB8888, handles, pitches, offsets, &fb_id, 0);
+    if (ret) {
+        fprintf(stderr, "failed to add fb (%ux%u): %s\n",
+                drm_mode->hdisplay, drm_mode->vdisplay, strerror(errno));
+        return;
+    }
 
-	ret = drmModeSetCrtc(drmFd, crtc->crtc_id, fb_id,
-			     0, 0, con_ids, num_cons,
-			     drm_mode);
+    ret = drmModeSetCrtc(drmFd, crtc->crtc_id, fb_id,
+            0, 0, con_ids, num_cons,
+            drm_mode);
 
-	/* XXX: Actually check if this is needed */
-	drmModeDirtyFB(drmFd, fb_id, NULL, 0);
-	x += drm_mode->hdisplay;
+    /* XXX: Actually check if this is needed */
+    drmModeDirtyFB(drmFd, fb_id, NULL, 0);
+    x += drm_mode->hdisplay;
 
-	if (ret) {
-		fprintf(stderr, "failed to set mode: %s\n", strerror(errno));
-		return;
-	}
+    if (ret) {
+        fprintf(stderr, "failed to set mode: %s\n", strerror(errno));
+        return;
+    }
+}
+
+void UEventHandler(int drm_fd) {
+    char buffer[1024];
+    int ret;
+
+    struct timespec ts;
+    uint64_t timestamp = 0;
+    ret = clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (!ret)
+        timestamp = ts.tv_sec * 1000 * 1000 * 1000 + ts.tv_nsec;
+    else
+        printf("Failed to get monotonic clock on hotplug %d", ret);
+
+    while (true) {
+        ret = read(uevent_fd, &buffer, sizeof(buffer));
+        if (ret == 0) {
+            return;
+        } else if (ret < 0) {
+            printf("Got error reading uevent %d", ret);
+            return;
+        }
+
+        bool drm_event = false, hotplug_event = false;
+        for (int i = 0; i < ret;) {
+            char *event = buffer + i;
+            if (strcmp(event, "DEVTYPE=drm_minor"))
+                drm_event = true;
+            else if (strcmp(event, "HOTPLUG=1"))
+            {
+                hotplug_event = true;
+                printf("hwc_uevent detect hotplug");
+            }
+
+            i += strlen(event) + 1;
+        }
+        printf("UEventHandler **************hotplug_event=%d\n", hotplug_event);
+        if (drm_event && hotplug_event)
+            updateModes(drm_fd);
+    }
+}
+
+void init(int drm_fd)
+{
+    struct sockaddr_nl addr;
+
+    uevent_fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
+    memset(&addr, 0, sizeof(addr));
+    addr.nl_family = AF_NETLINK;
+    addr.nl_groups = 0xFFFFFFFF;
+    int ret = bind(uevent_fd, (struct sockaddr *)&addr, sizeof(addr));
+
+    FD_ZERO(&fds);
+    FD_SET(drm_fd, &fds);
+    FD_SET(uevent_fd, &fds);
+    max_fd = (uevent_fd>drm_fd)?uevent_fd:drm_fd;
+}
+
+void* Routine(void* param) {
+    int* mDrmFd = (int*)param;
+    printf("Routine: mDrmFd = 0x%x\n", *mDrmFd);
+    init(*mDrmFd);
+    while (true) {
+        int ret;
+        do {
+            ret = select(max_fd + 1, &fds, NULL, NULL, NULL);
+        } while (ret == -1 && errno == EINTR);
+
+        if (FD_ISSET(*mDrmFd, &fds)) {
+            drmEventContext event_context = {
+                .version = DRM_EVENT_CONTEXT_VERSION,
+                .vblank_handler = NULL,
+                .page_flip_handler = NULL};
+            drmHandleEvent(*mDrmFd, &event_context);
+        }
+
+        if (FD_ISSET(uevent_fd, &fds))
+            UEventHandler(*mDrmFd);
+    }
 }
 
 int main(int argc, char** argv)
 {
     int                     mThreadStatus;
-    pthread_t				thread_id;
+    pthread_t				uevent_thread;
     int drm_fd = 0;
 
-	int modeid=0;
-	if (argc > 1)
-		modeid = atoi(argv[1]);
-
-	printf("argc=%d modeid=%d\n", argc, modeid);
+    int modeid=0;
+    if (argc > 1)
+        modeid = atoi(argv[1]);
+    mode_id = modeid;
+    printf("argc=%d modeid=%d\n", argc, modeid);
     drm_fd = open("/dev/dri/card0", O_RDWR);
     if (drm_fd < 0)
         printf("Failed to open dri 0 =%s\n", strerror(errno));
     drm_init(drm_fd);
+    /*
 #if 0
-	if (g_drm_encoder != NULL)
-		setMode(drm_fd, modeid);
-	else
-		set_crtc_mode(drm_fd, modeid);
+if (g_drm_encoder != NULL)
+setMode(drm_fd, modeid);
+else
+set_crtc_mode(drm_fd, modeid);
 #else
-	setMode(drm_fd, modeid);	
-#endif
-	drm_free();
+setMode(drm_fd, modeid);	
+#endif*/
+    mThreadStatus = pthread_create(&uevent_thread, NULL, Routine, &drm_fd);
+    while(1){
+        usleep(200*1000);
+    }
+
+    drm_free();
+    close(drm_fd);
 
     return 0;
 }

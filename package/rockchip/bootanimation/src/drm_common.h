@@ -67,7 +67,7 @@ extern void drm_restore_crtc(void);
 
 extern bool drm_get_resources(int fd);
 
-extern void drm_setup(int fd);
+extern void drm_update(int fd);
 
 extern void drm_free(void);
 

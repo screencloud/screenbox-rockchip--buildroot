@@ -212,6 +212,11 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
     } else {
         res = g_drm_resources;
     }
+    if (g_drm_encoder == NULL) {
+        drm_update(drm_fd);
+        if (g_drm_encoder == NULL)
+            return 0;
+    }
     /*
      * Found active crtc.
      */
@@ -633,7 +638,7 @@ static int jpeg_sf_decode(char* path, char* output)
     //cinfo.out_color_space = JCS_YCbCr;
     //cinfo.raw_data_out = true;
     jpeg_start_decompress(&cinfo);
-#if 1
+#if 0
     printf("cinfo.image_width=%d cinfo.image_height=%d cinfo.jpeg_color_space=%d output-%p\n", 
             cinfo.image_width, cinfo.image_height, cinfo.jpeg_color_space, output);
     printf("cinfo.output_width=%d cinfo.output_height=%d cinfo.bytesPerPix=%d\n", 
@@ -715,7 +720,6 @@ void* bootAnimation(void* parm)
             displayWidth=displayHeight=0;
             sprintf(picPath, "%s/%d.jpg",mBootAnimPath,j);
             jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);
-            printf("open %s w=%d h=%d\n", mBootAnimPath, displayWidth, displayHeight);
             if (displayWidth ==0 || displayHeight == 0){
                 sprintf(picPath, "%s/%d.jpeg",mBootAnimPath,j);
                 jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);

@@ -6,6 +6,7 @@ include_directories("/home/asx/linux/3128h/buildroot/output/host/usr/arm-rockchi
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 
 link_libraries("libdrm.so")
+link_libraries("libpthread.so")
 set(BOOT_SET_H
 	drm_common.h
 )

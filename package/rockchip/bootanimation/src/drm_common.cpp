@@ -139,13 +139,44 @@ bool drm_get_encoder(int fd)
    return true;
 }
 
-void drm_setup(int fd)
+void drm_update(int fd)
 {
-   g_crtc_id        = g_drm_encoder->crtc_id;
-   g_connector_id   = g_drm_connector->connector_id;
-   g_orig_crtc      = drmModeGetCrtc(fd, g_crtc_id);
-   if (!g_orig_crtc)
-      printf("[DRM]: Cannot find original CRTC.\n");
+	unsigned i;
+	for (i = 0; (int)i < g_drm_resources->count_connectors; i++)
+	{
+	   g_drm_connector = drmModeGetConnector(fd,
+			 g_drm_resources->connectors[i]);
+	
+	   if (!g_drm_connector)
+		  continue;
+	   if (g_drm_connector->connection == DRM_MODE_CONNECTED
+			 && g_drm_connector->count_modes > 0)
+	   {
+		  break;
+	   }
+	   drmModeFreeConnector(g_drm_connector);
+	   g_drm_connector = NULL;
+	}
+
+	if (!g_drm_connector)
+	{
+	   printf("[DRM]: Couldn't get device connector.\n");
+	   return;
+	}
+	
+	for (i = 0; (int)i < g_drm_resources->count_encoders; i++)
+	{
+	   g_drm_encoder = drmModeGetEncoder(fd, g_drm_resources->encoders[i]);
+	
+	   if (!g_drm_encoder)
+		  continue;
+	
+	   if (g_drm_encoder->encoder_id == g_drm_connector->encoder_id)
+		  break;
+	
+	   drmModeFreeEncoder(g_drm_encoder);
+	   g_drm_encoder = NULL;
+	}
 }
 
 void drm_free(void)
