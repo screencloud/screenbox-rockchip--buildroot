@@ -69,4 +69,5 @@ source "package/rockchip/bootanimation/Config.in"
 source "package/rockchip/modeset/Config.in"
 source "package/rockchip/rkjpeg/Config.in"
 source "package/rockchip/jpegdemo/Config.in"
+source "package/rockchip/ueventd/Config.in"
 endif
