@@ -30,7 +30,7 @@
 #include <linux/netlink.h>
 #include <private/android_filesystem_config.h>
 #include <sys/time.h>
-#include <asm/page.h>
+//#include <asm/page.h>
 #include <sys/wait.h>
 
 #include "devices.h"
@@ -41,6 +41,7 @@
 #define SYSFS_PREFIX    "/sys"
 #define FIRMWARE_DIR1   "/etc/firmware"
 #define FIRMWARE_DIR2   "/vendor/firmware"
+#define PAGE_SIZE 4096
 
 static int device_fd = -1;
 

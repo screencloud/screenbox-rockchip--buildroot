@@ -22,7 +22,7 @@ struct listnode
     struct listnode *next;
     struct listnode *prev;
 };
-
+#define offsetof(s,m) (size_t)&(((s *)0)->m)
 #define node_to_item(node, container, member) \
     (container *) (((char*) (node)) - offsetof(container, member))
 

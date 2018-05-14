@@ -31,7 +31,7 @@
 static char hardware[32];
 static unsigned revision = 0;
 
-int ueventd_main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     struct pollfd ufd;
     int nr;
