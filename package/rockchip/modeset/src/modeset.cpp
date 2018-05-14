@@ -34,246 +34,16 @@
 
 #include <linux/netlink.h>
 #include <sys/socket.h>
+#include <sys/syscall.h>
 
 #include "drm_common.h"
+#include "bootanimation.h"
 using namespace std;
 
 fd_set fds;
 int max_fd = -1;
 int uevent_fd = 0;
 int mode_id=0;
-
-struct mdrm_mode_modeinfo {
-    __u32 clock;
-    __u16 hdisplay;
-    __u16 hsync_start;
-    __u16 hsync_end;
-    __u16 htotal;
-    __u16 hskew;
-    __u16 vdisplay;
-    __u16 vsync_start;
-    __u16 vsync_end;
-    __u16 vtotal;
-    __u16 vscan;
-
-    __u32 vrefresh;
-
-    __u32 flags;
-    __u32 type;
-    char name[32];
-};
-struct bo
-{
-    int fd;
-    void *ptr;
-    size_t size;
-    size_t offset;
-    size_t pitch;
-    unsigned handle;
-};
-
-    struct armsoc_bo *
-bo_create_dumb(int fd, unsigned int width, unsigned int height, unsigned int bpp)
-{
-    struct drm_mode_create_dumb arg;
-    struct armsoc_bo *bo;
-    int ret;
-
-    bo = (struct armsoc_bo *)calloc(1, sizeof(*bo));
-    if (bo == NULL) {
-        fprintf(stderr, "failed to allocate buffer object\n");
-        return NULL;
-    }
-
-    memset(&arg, 0, sizeof(arg));
-    arg.bpp = bpp;
-    arg.width = width;
-    arg.height = height;
-
-    ret = drmIoctl(fd, DRM_IOCTL_MODE_CREATE_DUMB, &arg);
-    if (ret) {
-        fprintf(stderr, "failed to create dumb buffer: %s\n",
-                strerror(errno));
-        free(bo);
-        return NULL;
-    }
-
-    bo->fd = fd;
-    bo->handle = arg.handle;
-    bo->size = arg.size;
-    bo->pitch = arg.pitch;
-    bo->width = width;
-    bo->height = height;
-    return bo;
-}
-
-int bo_map(struct armsoc_bo *bo)
-{
-    struct drm_mode_map_dumb arg;
-    void *map;
-    int ret;
-
-    memset(&arg, 0, sizeof(arg));
-    arg.handle = bo->handle;
-
-    ret = drmIoctl(bo->fd, DRM_IOCTL_MODE_MAP_DUMB, &arg);
-    if (ret)
-        return ret;
-
-    /*map = drm_mmap(0, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
-      bo->fd, arg.offset);*/
-    drmMap(bo->fd, arg.offset, bo->size, &map);
-    if (map == MAP_FAILED)
-        return -EINVAL;
-
-    bo->ptr = map;
-
-
-    return 0;
-}
-
-void bo_unmap(struct armsoc_bo *bo)
-{
-    if (!bo->ptr)
-        return;
-
-    //drm_munmap(bo->ptr, bo->size);
-    drmUnmap(bo->ptr, bo->size);
-    bo->ptr = NULL;
-}
-
-void bo_destroy(struct armsoc_bo *bo)
-{
-    struct drm_mode_destroy_dumb arg;
-    int ret;
-
-    if (bo->fb_id) {
-        drmModeRmFB (bo->fd, bo->fb_id);
-        bo->fb_id = 0;
-    }
-
-    memset(&arg, 0, sizeof(arg));
-    arg.handle = bo->handle;
-
-    ret = drmIoctl(bo->fd, DRM_IOCTL_MODE_DESTROY_DUMB, &arg);
-    if (ret)
-        fprintf(stderr, "failed to destroy dumb buffer: %s fd=0x%x\n",
-                strerror(errno), bo->fd);
-
-    //free(bo);
-}
-
-    struct armsoc_bo *
-bo_create(int fd, unsigned int format,
-        unsigned int width, unsigned int height)
-{
-    unsigned int virtual_height;
-    struct armsoc_bo *bo;
-    unsigned int bpp;
-    int ret;
-
-    switch (format) {
-        case DRM_FORMAT_NV12:
-        case DRM_FORMAT_NV21:
-        case DRM_FORMAT_NV16:
-        case DRM_FORMAT_NV61:
-        case DRM_FORMAT_YUV420:
-        case DRM_FORMAT_YVU420:
-            bpp = 8;
-            break;
-
-        case DRM_FORMAT_ARGB4444:
-        case DRM_FORMAT_XRGB4444:
-        case DRM_FORMAT_ABGR4444:
-        case DRM_FORMAT_XBGR4444:
-        case DRM_FORMAT_RGBA4444:
-        case DRM_FORMAT_RGBX4444:
-        case DRM_FORMAT_BGRA4444:
-        case DRM_FORMAT_BGRX4444:
-        case DRM_FORMAT_ARGB1555:
-        case DRM_FORMAT_XRGB1555:
-        case DRM_FORMAT_ABGR1555:
-        case DRM_FORMAT_XBGR1555:
-        case DRM_FORMAT_RGBA5551:
-        case DRM_FORMAT_RGBX5551:
-        case DRM_FORMAT_BGRA5551:
-        case DRM_FORMAT_BGRX5551:
-        case DRM_FORMAT_RGB565:
-        case DRM_FORMAT_BGR565:
-        case DRM_FORMAT_UYVY:
-        case DRM_FORMAT_VYUY:
-        case DRM_FORMAT_YUYV:
-        case DRM_FORMAT_YVYU:
-            bpp = 16;
-            break;
-
-        case DRM_FORMAT_BGR888:
-        case DRM_FORMAT_RGB888:
-            bpp = 24;
-            break;
-
-        case DRM_FORMAT_ARGB8888:
-        case DRM_FORMAT_XRGB8888:
-        case DRM_FORMAT_ABGR8888:
-        case DRM_FORMAT_XBGR8888:
-        case DRM_FORMAT_RGBA8888:
-        case DRM_FORMAT_RGBX8888:
-        case DRM_FORMAT_BGRA8888:
-        case DRM_FORMAT_BGRX8888:
-        case DRM_FORMAT_ARGB2101010:
-        case DRM_FORMAT_XRGB2101010:
-        case DRM_FORMAT_ABGR2101010:
-        case DRM_FORMAT_XBGR2101010:
-        case DRM_FORMAT_RGBA1010102:
-        case DRM_FORMAT_RGBX1010102:
-        case DRM_FORMAT_BGRA1010102:
-        case DRM_FORMAT_BGRX1010102:
-            bpp = 32;
-            break;
-
-        default:
-            fprintf(stderr, "unsupported format 0x%08x\n",  format);
-            return NULL;
-    }
-
-    switch (format) {
-        case DRM_FORMAT_NV12:
-        case DRM_FORMAT_NV21:
-        case DRM_FORMAT_YUV420:
-        case DRM_FORMAT_YVU420:
-            virtual_height = height * 3 / 2;
-            break;
-
-        case DRM_FORMAT_NV16:
-        case DRM_FORMAT_NV61:
-            virtual_height = height * 2;
-            break;
-
-        default:
-            virtual_height = height;
-            break;
-    }
-
-    bo = bo_create_dumb(fd, width, virtual_height, bpp);
-    bo->format = format;
-    if (!bo)
-        return NULL;
-
-    ret = bo_map(bo);
-    if (ret) {
-        fprintf(stderr, "failed to map buffer: %s\n",
-                strerror(-errno));
-        bo_destroy(bo);
-        return NULL;
-    }
-
-    /* just testing a limited # of formats to test single
-     * and multi-planar path.. would be nice to add more..
-     */
-    //bo_unmap(bo);
-
-    return bo;
-}
 
 static int drm_init(int drmFd) {
     int i, ret;
@@ -379,13 +149,13 @@ static void setMode(int drmFd, int modeid, drmModeConnectorPtr conn){
     drmModeModeInfo *drm_mode = NULL;
     drmModeEncoder *drm_encoder  = NULL;
     drmModeRes *g_resources = g_drm_resources;
-	uint32_t conn_id;
+    uint32_t conn_id;
 
     num_cons = g_resources->count_connectors;
 
     if (conn == NULL) {
-		return;
-	}
+        return;
+    }
     if (conn) {
         if (modeid < conn->count_modes)
             drm_mode = &conn->modes[modeid];
@@ -423,6 +193,8 @@ static void setMode(int drmFd, int modeid, drmModeConnectorPtr conn){
         drmModeAtomicFree(req);
         if (crtc)
             drmModeFreeCrtc(crtc);
+
+        drm_update(drmFd);
     }
 }
 
@@ -432,9 +204,6 @@ static void updateModes(int fd)
     unsigned monitor_index = 0;
     bool isHdmiConnect=false;
     /* Enumerate all connectors. */
-
-    printf("[DRM]: Found %d connectors.\n", g_drm_resources->count_connectors);
-
     for (i = 0; (int)i < g_drm_resources->count_connectors; i++)
     {
         drmModeConnectorPtr conn = drmModeGetConnector(
@@ -443,19 +212,76 @@ static void updateModes(int fd)
         if (conn)
         {
             bool connected = conn->connection == DRM_MODE_CONNECTED;
-            printf("[DRM]: Connector %d connected: %s\n", i, connected ? "yes" : "no");
-            printf("[DRM]: Connector %d has %d modes.\n", i, conn->count_modes);
             if (connected && conn->count_modes > 0)
             {
                 monitor_index++;
-                isHdmiConnect=true;
-				setMode(fd, mode_id, conn);
-                printf("[DRM]: HDMI Connector %d assigned to monitor index: #%u.\n", i, monitor_index);
+                if (conn->connector_type == DRM_MODE_CONNECTOR_HDMIA)
+                    isHdmiConnect=true;
             }
             drmModeFreeConnector(conn);
         }
     }
+    printf("hotplug: remove connector monitor_index=%d\n", monitor_index);
+    if (monitor_index == 0) {
+        vsync_control(false);
+        drmModeAtomicReq *req;
+        bool inuse=true;
+        int ret;
+        int property_crtc_id,mode_property_id,active_property_id;
+        req = drmModeAtomicAlloc();
 
+        for (i = 0; (int)i < g_drm_resources->count_connectors; i++)
+        {
+            drmModeConnectorPtr conn = drmModeGetConnector(
+                    fd, g_drm_resources->connectors[i]);
+
+            if (conn && conn->connection != DRM_MODE_CONNECTED)
+            {
+                property_crtc_id = drmmode_getproperty(fd, conn->connector_id, DRM_MODE_OBJECT_CONNECTOR, "CRTC_ID");
+                DRM_ATOMIC_ADD_PROP(conn->connector_id, property_crtc_id, 0);
+                drmModeFreeConnector(conn);
+            }
+        }
+        printf("g_drm_encoder = NULL *************\n");
+        for (int i = 0; i < g_drm_resources->count_crtcs; ++i) {
+            mode_property_id = drmmode_getproperty(fd, g_drm_resources->crtcs[i], DRM_MODE_OBJECT_CRTC, "MODE_ID");
+            DRM_ATOMIC_ADD_PROP(g_drm_resources->crtcs[i], mode_property_id, 0);
+            active_property_id = drmmode_getproperty(fd, g_drm_resources->crtcs[i], DRM_MODE_OBJECT_CRTC, "ACTIVE");
+            DRM_ATOMIC_ADD_PROP(g_drm_resources->crtcs[i], active_property_id, 0);
+        }
+
+        ret = drmModeAtomicCommit(fd, req, DRM_MODE_ATOMIC_ALLOW_MODESET, NULL);
+        drmModeAtomicFree(req);
+    }else {
+        for (i = 0; (int)i < g_drm_resources->count_connectors; i++)
+        {
+            drmModeConnectorPtr conn = drmModeGetConnector(
+                    fd, g_drm_resources->connectors[i]);
+            if (conn == NULL)
+                continue;
+
+            bool connected = conn->connection == DRM_MODE_CONNECTED;
+            if (isHdmiConnect=true)
+            {
+                if (connected && conn->count_modes > 0 && conn->connector_type == DRM_MODE_CONNECTOR_HDMIA)
+                {
+                    monitor_index++;
+                    setMode(fd, mode_id, conn);
+                    printf("[DRM]: HDMI Connector %d assigned to monitor index: #%u.\n", i, monitor_index);
+                    break;
+                }
+            } else {
+                if (connected && conn->count_modes > 0)
+                {
+                    monitor_index++;
+                    setMode(fd, mode_id, conn);
+                    printf("[DRM]: CVBS Connector %d assigned to monitor index: #%u.\n", i, monitor_index);
+                }
+            }
+            drmModeFreeConnector(conn);
+        }
+        vsync_control(true);
+    }
 }
 
 static void set_crtc_mode(int drmFd, int modeid)
@@ -549,15 +375,18 @@ void UEventHandler(int drm_fd) {
                 drm_event = true;
             else if (strcmp(event, "HOTPLUG=1"))
             {
-                hotplug_event = true;
-                printf("hwc_uevent detect hotplug");
+                if (strncmp(buffer, "change@", 7) == 0)
+                    hotplug_event = true;
+                //else if (strncmp(buffer, "libudev", 7) == 0)
+                //printf("hwc_uevent libudev HOTPLUG=1 buffer=%s pid=0x%x\n", buffer, syscall(SYS_gettid));
+                printf("hwc_uevent detect HOTPLUG=1 buffer=%s hotplug_event=%d\n", buffer, hotplug_event);
             }
 
             i += strlen(event) + 1;
         }
-        printf("UEventHandler **************hotplug_event=%d\n", hotplug_event);
-        if (drm_event && hotplug_event)
+        if (drm_event && hotplug_event) {
             updateModes(drm_fd);
+        }
     }
 }
 
@@ -578,25 +407,24 @@ void init(int drm_fd)
 }
 
 void* Routine(void* param) {
-    int* mDrmFd = (int*)param;
-    printf("Routine: mDrmFd = 0x%x\n", *mDrmFd);
-    init(*mDrmFd);
+    int mDrmFd = drm_get_device();
+    init(mDrmFd);
     while (true) {
         int ret;
         do {
             ret = select(max_fd + 1, &fds, NULL, NULL, NULL);
         } while (ret == -1 && errno == EINTR);
 
-        if (FD_ISSET(*mDrmFd, &fds)) {
+        if (FD_ISSET(mDrmFd, &fds)) {
             drmEventContext event_context = {
                 .version = DRM_EVENT_CONTEXT_VERSION,
                 .vblank_handler = NULL,
                 .page_flip_handler = NULL};
-            drmHandleEvent(*mDrmFd, &event_context);
+            drmHandleEvent(mDrmFd, &event_context);
         }
 
         if (FD_ISSET(uevent_fd, &fds))
-            UEventHandler(*mDrmFd);
+            UEventHandler(mDrmFd);
     }
 }
 
@@ -611,26 +439,27 @@ int main(int argc, char** argv)
         modeid = atoi(argv[1]);
     mode_id = modeid;
     printf("argc=%d modeid=%d\n", argc, modeid);
-    drm_fd = open("/dev/dri/card0", O_RDWR);
+    drm_fd = drm_get_device();
     if (drm_fd < 0)
         printf("Failed to open dri 0 =%s\n", strerror(errno));
     drm_init(drm_fd);
-    /*
-#if 0
-if (g_drm_encoder != NULL)
-setMode(drm_fd, modeid);
-else
-set_crtc_mode(drm_fd, modeid);
-#else
-setMode(drm_fd, modeid);	
-#endif*/
-    mThreadStatus = pthread_create(&uevent_thread, NULL, Routine, &drm_fd);
+    if (modeid <=0) {
+        //mode_id = 1;
+        mThreadStatus = pthread_create(&uevent_thread, NULL, Routine, &drm_fd);
+        start_boot_thread(drm_fd);
+        vsync_control(true);
+    } else {
+        updateModes(drm_fd);
+    }
     while(1){
         usleep(200*1000);
     }
-
     drm_free();
     close(drm_fd);
+    stop_boot_thread();
+    if (pthread_join(uevent_thread, NULL) != 0) {
+        printf("Couldn't cancel vsync thread \n");
+    }
 
     return 0;
 }
