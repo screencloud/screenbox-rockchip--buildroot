@@ -4,7 +4,17 @@ LOCAL_DIR=$(pwd)
 BUILDROOT_DIR=$LOCAL_DIR/buildroot
 BUILD_OUTPUT_DIR=$LOCAL_DIR/buildroot/output
 
-DEFCONFIG_ARRAY=( "rockchip_rk3308_release" "rockchip_rk3308_debug" )
+rockchip_px3se_defconfig               rockchip_rk3036_recovery_defconfig     rockchip_rk3288_recovery_defconfig
+rockchip_px3se_minifs_defconfig        rockchip_rk3128H_defconfig             rockchip_rk3308_release_defconfig
+rockchip_px3se_recovery_defconfig      rockchip_rk3229_defconfig              rockchip_rk3326_defconfig
+rockchip_rk3036_common_defconfig       rockchip_rk3229_gva_pcba_defconfig     rockchip_rk3326_recovery_defconfig
+rockchip_rk3036_cpp_defconfig          rockchip_rk3229_pcba_defconfig         rockchip_rk3328_defconfig
+rockchip_rk3036_defconfig              rockchip_rk3229_recovery_defconfig     rockchip_rk3328_gtk3_defconfig
+rockchip_rk3036_dueros_defconfig       rockchip_rk322x_defconfig              rockchip_rk3399_defconfig
+rockchip_rk3036_kernel_v4_4_defconfig  rockchip_rk322x_dueros_defconfig       rockchip_rk3399_recovery_defconfig
+rockchip_rk3036_pcba_defconfig         rockchip_rk3288_defconfig
+
+DEFCONFIG_ARRAY=( "rockchip_px3se_defconfig" "rockchip_px3se_minifs_defconfig" "rockchip_px3se_recovery_defconfig" "rockchip_rk3036_common_defconfig" "rockchip_rk3036_cpp_defconfig" "rockchip_rk3036_defconfig" "rockchip_rk3036_dueros_defconfig" "rockchip_rk3036_kernel_v4_4_defconfig" "rockchip_rk3036_pcba_defconfig" "rockchip_rk3036_recovery_defconfig" "rockchip_rk3128H_defconfig" "rockchip_rk3229_defconfig" "rockchip_rk3229_gva_pcba_defconfig" "rockchip_rk3229_pcba_defconfig" "rockchip_rk3229_recovery_defconfig" "rockchip_rk322x_defconfig" "rockchip_rk322x_dueros_defconfig" "rockchip_rk3288_defconfig" "rockchip_rk3288_recovery_defconfig" "rockchip_rk3308_release_defconfig" "rockchip_rk3326_defconfig" "rockchip_rk3326_recovery_defconfig" "rockchip_rk3328_defconfig" "rockchip_rk3328_gtk3_defconfig" "rockchip_rk3399_defconfig" "rockchip_rk3399_recovery_defconfig" )
 
 DEFCONFIG_ARRAY_LEN=${#DEFCONFIG_ARRAY[@]}
 
@@ -75,6 +85,10 @@ function get_build_config() {
 	fi
 }
 
+function get_defconfig_name() {
+	echo $TARGET_DIR_NAME
+}
+
 function get_target_build_type() {
 	TARGET=$1
 	TYPE="$(echo $TARGET | cut -d '_' -f 1)"
@@ -131,7 +145,7 @@ function choose_type()
 			fi
 		else
 			echo $ANSWER
-			TARGET_BUILD_CONFIG=`get_build_config $ANSWER`
+			TARGET_BUILD_CONFIG="$ANSWER"
 			TARGET_DIR_NAME="$ANSWER"
 			TARGET_BUILD_TYPE=`get_target_build_type $ANSWER`
 			TARGET_BOARD_TYPE=`get_target_board_type $ANSWER`
