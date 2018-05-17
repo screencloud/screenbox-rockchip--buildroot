@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# mount all the volume in fstab again in case some mount point created by ueventd..
+#
+
+case "$1" in
+  start)
+		sleep 5   #wait for ueventd finish scan and create mount point
+		mount -a
+
+	;;
+  stop)
+		printf "stop finished"
+        ;;
+  *)
+        echo "Usage: $0 {start|stop}"
+        exit 1
+        ;;
+esac
+exit 0
