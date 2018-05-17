@@ -5,7 +5,7 @@
 ################################################################################
 
 RECOVERY_VERSION = develop
-RECOVERY_SITE = $(TOPDIR)/../recovery
+RECOVERY_SITE = $(TOPDIR)/../external/recovery
 RECOVERY_SITE_METHOD = local
 
 RECOVERY_LICENSE = Apache V2.0
