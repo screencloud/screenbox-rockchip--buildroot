@@ -17,6 +17,22 @@ else ifeq ($(BR2_PACKAGE_RK3128H),y)
 LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
 LIBCUTILS_SITE_METHOD = local
 LIBCUTILS_DEPENDENCIES += liblog
+else ifeq ($(BR2_PACKAGE_RK3399),y)
+LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
+LIBCUTILS_SITE_METHOD = local
+LIBCUTILS_DEPENDENCIES += liblog
+else ifeq ($(BR2_PACKAGE_RK3288),y)
+LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
+LIBCUTILS_SITE_METHOD = local
+LIBCUTILS_DEPENDENCIES += liblog
+else ifeq ($(BR2_PACKAGE_RK3326),y)
+LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
+LIBCUTILS_SITE_METHOD = local
+LIBCUTILS_DEPENDENCIES += liblog
+else ifeq ($(BR2_PACKAGE_PX3SE),y)
+LIBCUTILS_SITE = $(TOPDIR)/../external/libcutils
+LIBCUTILS_SITE_METHOD = local
+LIBCUTILS_DEPENDENCIES += liblog
 else
 LIBCUTILS_SITE = $(call qstrip, ssh://git@10.10.10.78:2222/argus/externals/libcutils.git)
 LIBCUTILS_SITE_METHOD = git
