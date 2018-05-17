@@ -21,14 +21,17 @@ RECOVERY_MAKE_OPTS = \
         CFLAGS="$(TARGET_CFLAGS) $(RECOVERY_BUILD_OPTS)" \
         PROJECT_DIR="$(@D)"
 
-
+define RECOVERY_IMAGE_COPY
+        mkdir -p $(TARGET_DIR)/res/images
+        cp $(BUILD_DIR)/recovery-$(RECOVERY_VERSION)/res/images/* $(TARGET_DIR)/res/images/
+endef
 
 define RECOVERY_BUILD_CMDS
 	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) CC="$(TARGET_CC)" $(RECOVERY_MAKE_OPTS)
 endef
 
 define RECOVERY_INSTALL_TARGET_CMDS
-        $(INSTALL) -D -m 755 $(@D)/recovery $(TARGET_DIR)/usr/bin/
+        $(INSTALL) -D -m 755 $(@D)/recovery $(TARGET_DIR)/usr/bin/ && $(RECOVERY_IMAGE_COPY)
 endef
 
 ifeq ($(BR2_PACKAGE_RECOVERY),y)
