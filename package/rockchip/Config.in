@@ -30,6 +30,26 @@ config BR2_PACKAGE_RK3128H
     bool "rk3128H chip"
     help
         Use rockchip's rk3128H box chip
+
+config BR2_PACKAGE_RK3399
+    bool "rk3399 chip"
+    help
+        Use rockchip's rk3399 chip
+
+config BR2_PACKAGE_RK3288
+    bool "rk3288 chip"
+    help
+        Use rockchip's rk3288 chip
+
+config BR2_PACKAGE_RK3326
+    bool "rk3326 chip"
+    help
+        Use rockchip's rk3326 chip
+
+config BR2_PACKAGE_PX3SE
+    bool "px3se chip"
+    help
+        Use rockchip's px3se chip
 endchoice
 
 # BSP packages
@@ -70,4 +90,5 @@ source "package/rockchip/modeset/Config.in"
 source "package/rockchip/rkjpeg/Config.in"
 source "package/rockchip/jpegdemo/Config.in"
 source "package/rockchip/ueventd/Config.in"
+source "package/rockchip/rkupdate/Config.in"
 endif
