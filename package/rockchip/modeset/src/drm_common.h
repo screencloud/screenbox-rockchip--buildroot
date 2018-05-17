@@ -21,6 +21,9 @@
 
 #include <xf86drm.h>
 #include <xf86drmMode.h>
+#include <libdrm/drm_fourcc.h>
+#include <fcntl.h>
+
 #include <poll.h>
 #include <stdbool.h>
 
@@ -38,58 +41,26 @@ struct armsoc_bo
     size_t size;
     size_t offset;
     size_t pitch;
-	int width;
-	int height;
-	int format;
+    int width;
+    int height;
+    int format;
     unsigned handle;
-	unsigned int fb_id;
-	int dmabuf;
+    unsigned int fb_id;
+    int dmabuf;
 };
-
-
-extern uint32_t g_connector_id;
-extern int g_drm_fd;
-extern uint32_t g_crtc_id;
-
-extern struct pollfd g_drm_fds;
 
 extern drmModeRes *g_drm_resources;
 extern drmModeConnector *g_drm_connector;
-extern drmModeModeInfo *g_drm_mode;
-
-extern drmEventContext g_drm_evctx;
 extern drmModeEncoder *g_drm_encoder;
 
 extern bool drm_get_encoder(int fd);
-
 /* Restore the original CRTC. */
 extern void drm_restore_crtc(void);
-
 extern bool drm_get_resources(int fd);
-
-extern void drm_setup(int fd);
-
+extern void drm_update(int fd);
 extern void drm_free(void);
-
 extern bool drm_get_connector(int fd);
-#if 0
-static INLINE bool drm_wait_flip(int timeout)
-{
-   g_drm_fds.revents = 0;
+extern drmModeCrtcPtr drm_getcrtc(int fd, int* num);
+extern int drm_get_device();
 
-   if (poll(&g_drm_fds, 1, timeout) < 0)
-      return false;
-
-   if (g_drm_fds.revents & (POLLHUP | POLLERR))
-      return false;
-
-   if (g_drm_fds.revents & POLLIN)
-   {
-      drmHandleEvent(g_drm_fd, &g_drm_evctx);
-      return true;
-   }
-
-   return false;
-}
-#endif
 #endif
