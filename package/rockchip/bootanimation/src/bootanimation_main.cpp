@@ -17,6 +17,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <xf86drm.h>
+#include <xf86drmMode.h>
+#include <libdrm/drm_fourcc.h>
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <errno.h>
 #include <string.h> 
@@ -28,33 +32,93 @@
 #include <unistd.h>
 
 #include <sys/time.h>
-#include <unistd.h>
 
 #include "drm_common.h"
-#include "bootanimation.h"
-#ifdef HW_JPEG
-#include "pv_jpegdec_api.h"
-#include "jpeg_global.h"
-#include "vpu.h"
-#include "vpu_api.h"
-#endif
 using namespace std;
 
-SfJpegOutputBuf mBufSlotInfo[MAX_OUTPUT_RSV_CNT];
-pthread_t thread_;
-pthread_mutex_t lock_;
-pthread_cond_t cond_;
+#define BOOT_ANIMATION_CONFIG_FILE "/mnt/bootanimation/boot.conf"
 
-int64_t last_timestamp_;
-bool enabled_;
-bool exit_;
+struct mdrm_mode_modeinfo {
+    __u32 clock;
+    __u16 hdisplay;
+    __u16 hsync_start;
+    __u16 hsync_end;
+    __u16 htotal;
+    __u16 hskew;
+    __u16 vdisplay;
+    __u16 vsync_start;
+    __u16 vsync_end;
+    __u16 vtotal;
+    __u16 vscan;
 
-int bufCnt;
-int mImageCount;
+    __u32 vrefresh;
+
+    __u32 flags;
+    __u32 type;
+    char name[32];
+};
+struct plane_prop {
+    int crtc_id;
+    int fb_id;
+    int src_x;
+    int src_y;
+    int src_w;
+    int src_h;
+    int crtc_x;
+    int crtc_y;
+    int crtc_w;
+    int crtc_h;
+};
+
+typedef struct
+{
+    void * decoderHandle;
+    char *outAddr;
+    int phyAddr;
+} HwJpegOutputBuf;
+
+typedef struct
+{
+    struct armsoc_bo* bo;
+}SfJpegOutputBuf;
+
+#define JPEG_OUTPUT_BUF_CNT 6
+#define MAX_OUTPUT_RSV_CNT 4
+
+// ---------------------------------------------------------------------------
+static int m_next_frame_time = 16;
+static int m_thread_run = 0;
+int tmpCnt=0;
+int bufCnt = JPEG_OUTPUT_BUF_CNT;
+static int mImageCount = 0;
 char mBootAnimPath[128];
-void* mDecoder=NULL;
-static int mfps = 60;
-static int vsync_cnt=0;
+SfJpegOutputBuf mSfJpegBufInfo[MAX_OUTPUT_RSV_CNT];
+
+static int drm_init(int drmFd) {
+    int i, ret;
+
+    ret = drmSetClientCap(drmFd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+    if (ret) {
+        printf( "Failed to set atomic cap %s \n", strerror(errno));
+        return ret;
+    }
+
+    ret = drmSetClientCap(drmFd, DRM_CLIENT_CAP_ATOMIC, 1);
+    if (ret) {
+        printf( "Failed to set atomic cap %s \n", strerror(errno));
+        return ret;
+    }
+
+
+    if (!drm_get_resources(drmFd))
+        return -1;
+
+    if (!drm_get_connector(drmFd))
+        return -1;
+
+    if (!drm_get_encoder(drmFd))
+        return -1;
+}
 
 static bool drmmode_getproperty(int drmFd, uint32_t obj_id, uint32_t obj_type, struct mdrm_mode_modeinfo* drm_mode)
 {
@@ -122,24 +186,6 @@ static int drm_get_curActiveResolution(int drm_fd, int* width, int* height){
     return ret;
 }
 
-static bool drm_check_video(int drm_fd)
-{
-    bool is_win1_enable=false;;
-    drmModePlaneResPtr plane_res;
-    plane_res = drmModeGetPlaneResources(drm_fd);
-    for (uint32_t i = 1; i < plane_res->count_planes; ++i) {
-        bool foundPlane=false;
-        drmModePlanePtr plane = drmModeGetPlane(drm_fd, plane_res->planes[i]);
-        //printf("plane: crtc_id=%d fb_id=%d crtc_x=%d crtc_y=%d i =%d\n", plane->crtc_id, plane->fb_id, plane->crtc_x,plane->crtc_y,i);
-        if (plane->fb_id > 0)
-            is_win1_enable = true;
-        drmModeFreePlane(plane);
-    }
-    if (plane_res)
-        drmModeFreePlaneResources(plane_res);
-    return is_win1_enable;
-}
-
 static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
 {
     drmModePlaneResPtr plane_res;
@@ -167,7 +213,9 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
         res = g_drm_resources;
     }
     if (g_drm_encoder == NULL) {
-        return 0;
+        drm_update(drm_fd);
+        if (g_drm_encoder == NULL)
+            return 0;
     }
     /*
      * Found active crtc.
@@ -200,14 +248,11 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
             }
             drmModeFreeProperty(prop);
         }
-        if (props) {
+        if (props)
             drmModeFreeObjectProperties(props);
-            props = NULL;
-        }
         if (found_crtc)
             break;
         drmModeFreeCrtc(crtc);
-        crtc = NULL;
     }
 
     if (!crtc) {
@@ -233,7 +278,6 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
         if (foundPlane)
             break;
         drmModeFreePlane(plane);
-        plane = NULL;
     }
 
     //plane = drmModeGetPlane(drm_fd, plane_res->planes[1]);
@@ -281,18 +325,7 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
         drmModeFreeProperty(prop);
         //xf86DrvMsg(-1, X_WARNING, "prop[%d] = %d\n", i, prop->prop_id);
     }
-    ret = drm_get_curActiveResolution(drm_fd, &crtc_w, &crtc_h);
-    if (ret<=0) {
-        if (plane)
-            drmModeFreePlane(plane);
-        if (plane_res)
-            drmModeFreePlaneResources(plane_res);
-        if (props)
-            drmModeFreeObjectProperties(props);
-        if (crtc)
-            drmModeFreeCrtc(crtc);
-        return ret;
-    }
+    drm_get_curActiveResolution(drm_fd, &crtc_w, &crtc_h);
     req = drmModeAtomicAlloc();
 #define DRM_ATOMIC_ADD_PROP(object_id, prop_id, value) \
     ret = drmModeAtomicAddProperty(req, object_id, prop_id, value); \
@@ -335,7 +368,8 @@ static int ctx_drm_display(int drm_fd, struct armsoc_bo* bo, int x, int y)
     return ret;
 }
 
-struct armsoc_bo* bo_create_dumb(int fd, unsigned int width, unsigned int height, unsigned int bpp)
+    struct armsoc_bo *
+bo_create_dumb(int fd, unsigned int width, unsigned int height, unsigned int bpp)
 {
     struct drm_mode_create_dumb arg;
     struct armsoc_bo *bo;
@@ -389,6 +423,8 @@ int bo_map(struct armsoc_bo *bo)
         return -EINVAL;
 
     bo->ptr = map;
+
+
     return 0;
 }
 
@@ -396,6 +432,7 @@ void bo_unmap(struct armsoc_bo *bo)
 {
     if (!bo->ptr)
         return;
+
     //drm_munmap(bo->ptr, bo->size);
     drmUnmap(bo->ptr, bo->size);
     bo->ptr = NULL;
@@ -425,13 +462,13 @@ int bo_destroy(struct armsoc_bo *bo)
        data.handle = bo->handle;
        ret = drmIoctl(bo->fd, DRM_IOCTL_GEM_CLOSE, &data);
        if (ret)
-       return -errno;
-    //free(bo);
-     */
+       return -errno;*/
     return ret;
+    //free(bo);
 }
 
-struct armsoc_bo* bo_create(int fd, unsigned int format,
+    struct armsoc_bo *
+bo_create(int fd, unsigned int format,
         unsigned int width, unsigned int height)
 {
     unsigned int virtual_height;
@@ -533,6 +570,12 @@ struct armsoc_bo* bo_create(int fd, unsigned int format,
         bo_destroy(bo);
         return NULL;
     }
+
+    /* just testing a limited # of formats to test single
+     * and multi-planar path.. would be nice to add more..
+     */
+    //bo_unmap(bo);
+
     return bo;
 }
 
@@ -550,6 +593,7 @@ static void jpeg_get_displayinfo(char* path, int* width, int* height)
     {
         *width = 0;
         *height = 0;
+        //printf("fopen fail path=%s\n", path);
         return;
     }
     cinfo.err = jpeg_std_error(&jerr);
@@ -572,7 +616,7 @@ static int jpeg_sf_decode(char* path, char* output)
 {
     struct jpeg_decompress_struct cinfo;  
     struct jpeg_error_mgr jerr; 
-    JSAMPARRAY lineBuf;
+    JSAMPARRAY lineBuf;// = (JSAMPIMAGE)malloc(sizeof(JSAMPARRAY)*1);;
     int bytesPerPix;
 #ifdef TIME_DEBUG
     struct timeval start,end;
@@ -650,281 +694,121 @@ static int jpeg_sf_decode(char* path, char* output)
     gettimeofday(&end, NULL);
     printf("jpeg_sf_decode usetime=%d************4\n", (1000000 *(end.tv_sec - start.tv_sec) + (end.tv_usec-start.tv_usec))/1000);
 #endif
+#if 0
+    infile = fopen("/mnt/sdcard/result.yuv", "wb");
+    printf("errno = %s \n", strerror(errno));
+    if (infile) {
+        fwrite(output, outSize, 1, infile);
+        fclose(infile);
+    }
+#endif
     return 0;
 }
 
-void bootAnimation(int mDrmFd)
+void* bootAnimation(void* parm)
 {
-    int drm_fd = mDrmFd;
+    int* drm_fd = (int *)parm;
     int mFrameNum = 0;
 
-    int pathSize = 128;
-    char* picPath = (char*)calloc(1, pathSize);
-    int displayWidth=0,displayHeight=0;
-    uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
-    for (int j=0;j<mImageCount;j++) {
-        memset(picPath, 0, pathSize);
-        displayWidth=displayHeight=0;
-        sprintf(picPath, "%s/%d.jpg",mBootAnimPath,j);		
-        if (access(picPath, R_OK) != 0)
-            sprintf(picPath, "%s/%d.jpeg",mBootAnimPath,j);
-        if (access(picPath, R_OK) != 0)
-            continue;
-        jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);
-
-        if (displayWidth !=0 && displayHeight != 0) {
-            struct armsoc_bo* bo=NULL;
-            int slot=MAX_OUTPUT_RSV_CNT-1;
-            bool found=false;
-
-            if (mBufSlotInfo[slot].bo && mBufSlotInfo[slot].bo->fd != 0 && mBufSlotInfo[slot].bo->ptr != NULL) {
-                bo_unmap(mBufSlotInfo[slot].bo);
-                bo_destroy(mBufSlotInfo[slot].bo);
-                free(mBufSlotInfo[slot].bo);
-                //printf("free: mSfJpegBufInfo[0].mPath %s \n", mBufSlotInfo[slot].mPath);
-                mBufSlotInfo[slot].bo = NULL;			
-                memset(mBufSlotInfo[slot].mPath, 0, sizeof(mBufSlotInfo[slot].mPath));
-            }
-            bo = bo_create(drm_fd, DRM_FORMAT_RGB888, displayWidth, displayHeight);
-            if (bo == NULL)
-                return;
-            jpeg_sf_decode(picPath, (char*)bo->ptr);
-            offsets[0] = 0;
-            handles[0] = bo->handle;
-            pitches[0] = bo->pitch;
-            if (drmModeAddFB2(drm_fd, bo->width, bo->height, DRM_FORMAT_RGB888,
-                        handles, pitches, offsets, &bo->fb_id, 0)) {
-                printf( "failed to add fb: %s\n", strerror(errno));
-                continue;
-            }
-            ctx_drm_display(drm_fd, bo, 0, 0);
-            mBufSlotInfo[0].bo = bo;
-            sprintf(mBufSlotInfo[0].mPath, "%s", picPath);
-            for (int tmp=MAX_OUTPUT_RSV_CNT-1;tmp>0;tmp--) {
-                mBufSlotInfo[tmp].bo = mBufSlotInfo[tmp-1].bo;
-                memcpy(mBufSlotInfo[tmp].mPath, mBufSlotInfo[tmp-1].mPath, strlen(mBufSlotInfo[tmp-1].mPath));
-            }
-            memset(mBufSlotInfo[0].mPath, 0, sizeof(mBufSlotInfo[0].mPath));
-            mBufSlotInfo[0].bo = NULL;
-
-        }
-    }
-    if (picPath) {
-        free(picPath);
-        picPath = NULL;
-    }
-}
-
-static const int64_t kBillion = 1000000000LL;
-static const int64_t kOneSecondNs = 1 * 1000 * 1000 * 1000;
-
-int64_t GetPhasedVSync(int64_t frame_ns, int64_t current) {
-    if (last_timestamp_ < 0)
-        return current + frame_ns;
-
-    return frame_ns * ((current - last_timestamp_) / frame_ns + 1) +
-        last_timestamp_;
-}
-
-int SyntheticWaitVBlank(int64_t *timestamp) {
-    struct timespec vsync;
-    int ret = clock_gettime(CLOCK_MONOTONIC, &vsync);
-
-    float refresh = 60.0f;  // Default to 60Hz refresh rate
-
-    int64_t phased_timestamp = GetPhasedVSync(
-            kOneSecondNs / refresh, vsync.tv_sec * kOneSecondNs + vsync.tv_nsec);
-    vsync.tv_sec = phased_timestamp / kOneSecondNs;
-    vsync.tv_nsec = phased_timestamp - (vsync.tv_sec * kOneSecondNs);
     do {
-        ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &vsync, NULL);
-    } while (ret == -1 && errno == EINTR);
-    if (ret)
-        return ret;
+        int pathSize = 128;
+        char* picPath = (char*)calloc(1, pathSize);
+        int displayWidth=0,displayHeight=0;
+        uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
+        for (int j=0;j<mImageCount;j++) {
+            memset(picPath, 0, pathSize);
+            displayWidth=displayHeight=0;
+            sprintf(picPath, "%s/%d.jpg",mBootAnimPath,j);
+            jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);
+            if (displayWidth ==0 || displayHeight == 0){
+                sprintf(picPath, "%s/%d.jpeg",mBootAnimPath,j);
+                jpeg_get_displayinfo(picPath, &displayWidth, &displayHeight);
+            }
 
-    *timestamp = (int64_t)vsync.tv_sec * kOneSecondNs + (int64_t)vsync.tv_nsec;
-    return 0;
-}
+            if (displayWidth !=0 && displayHeight != 0) {
+                struct armsoc_bo* bo=NULL;
+                struct armsoc_bo* tmpBo=NULL;
 
-static struct timeval cur,last;
-void Routine() 
-{
-    last = cur;
-    int mDrmFd = drm_get_device();
-    int ret = pthread_mutex_lock(&lock_);
-    if (ret) {
-        printf("Failed to lock worker %d \n", ret);
-        return;
-    }
+                tmpBo = mSfJpegBufInfo[MAX_OUTPUT_RSV_CNT-1].bo;
+                if (tmpBo && tmpBo->fd != 0 && tmpBo->ptr != NULL) {
+                    bo_unmap(tmpBo);
+                    bo_destroy(tmpBo);
+                    free(tmpBo);
+                    mSfJpegBufInfo[MAX_OUTPUT_RSV_CNT-1].bo = NULL;
+                    tmpBo = NULL;
+                }
+                bo = bo_create(*drm_fd, DRM_FORMAT_RGB888, displayWidth, displayHeight);
+                jpeg_sf_decode(picPath, (char*)bo->ptr);
+                offsets[0] = 0;
+                handles[0] = bo->handle;
+                pitches[0] = bo->pitch;
+                if (drmModeAddFB2(*drm_fd, bo->width, bo->height, DRM_FORMAT_RGB888,
+                            handles, pitches, offsets, &bo->fb_id, 0)) {
+                    printf( "failed to add fb: %s\n", strerror(errno));
+                    break;
+                }
+                ctx_drm_display(*drm_fd, bo, 0, 0);
+                mSfJpegBufInfo[0].bo = bo;
+                for (int tmp=MAX_OUTPUT_RSV_CNT-1;tmp>0;tmp--) {
+                    mSfJpegBufInfo[tmp].bo = mSfJpegBufInfo[tmp-1].bo;
+                }
+                mSfJpegBufInfo[0].bo = NULL;
 
-    if (!enabled_) {
-        printf("vsync: pthread_cond_wait\n");
-        ret = ret = pthread_cond_wait(&cond_, &lock_);
-        if (ret == -EINTR) {
-            return;
+            }
+            usleep(m_next_frame_time * 1000);
         }
-    }
-
-    bool enabled = enabled_;
-
-    ret = pthread_mutex_unlock(&lock_);
-    if (ret) {
-        printf("Failed to unlock worker %d \n", ret);
-    }
-
-    if (!enabled)
-        return;
-    int64_t timestamp;
-    drmModeCrtcPtr crtc = NULL;
-    int pipe=0;
-    if (g_drm_connector)
-        crtc = drm_getcrtc(mDrmFd, &pipe);
-    if (!crtc) {
-        ret = SyntheticWaitVBlank(&timestamp);
-        if (ret)
-            return;
-    } else {
-        uint32_t high_crtc = (pipe << DRM_VBLANK_HIGH_CRTC_SHIFT);
-
-        drmVBlank vblank;
-        memset(&vblank, 0, sizeof(vblank));
-        vblank.request.type = (drmVBlankSeqType)(
-                DRM_VBLANK_RELATIVE | (high_crtc & DRM_VBLANK_HIGH_CRTC_MASK));
-        vblank.request.sequence = 1;
-
-        ret = drmWaitVBlank(mDrmFd, &vblank);
-        if (ret == -EINTR) {
-            return;
-        } else if (ret) {
-            ret = SyntheticWaitVBlank(&timestamp);
-            if (ret)
-                return;
-        } else {
-            timestamp = (int64_t)vblank.reply.tval_sec * kOneSecondNs +
-                (int64_t)vblank.reply.tval_usec * 1000;
+        if (picPath) {
+            free(picPath);
+            picPath = NULL;
         }
-    }
-    if (crtc)
-        drmModeFreeCrtc(crtc);
-    gettimeofday(&cur, NULL);
-    usleep(10*1000);
-    //printf("Routine usetime=%d************4\n", (1000000 *(cur.tv_sec - last.tv_sec) + (cur.tv_usec-last.tv_usec))/1000);
-    if (!drm_check_video(mDrmFd) && (vsync_cnt == mfps || vsync_cnt == 0)) {
-        bootAnimation(mDrmFd);
-        if (vsync_cnt == mfps)
-            vsync_cnt = 0;
-    }
-    vsync_cnt ++;
-}
+    } while (m_thread_run);
 
-void* vsyncThread(void* param)
-{
-    while (true) {
-        int ret =  pthread_mutex_lock(&lock_);
-        if (ret) {
-            printf("Failed to lock %s thread %d\n", ret);
-            continue;
-        }
-
-        bool exit = exit_;
-
-        ret = pthread_mutex_unlock(&lock_);
-        if (ret) {
-            printf("Failed to unlock %s thread %d\n",  ret);
-            break;
-        }
-        if (exit)
-            break;
-        Routine();
-    }
-    return 0;
-}
-
-int signale_locked(bool exit)
-{
-    if (exit)
-        exit_ = exit;
-    int ret = pthread_cond_signal(&cond_);
-    if (ret)
-        printf("Failed to signal condition  thread %d\n", ret);
-    return ret;
-}
-
-int vsync_control(bool enabled)
-{
-    int ret;
-    pthread_mutex_lock(&lock_);
-    enabled_ = enabled;
-    ret = signale_locked(false);
-    //drm_update(drm_get_device());
-    vsync_cnt = 0;
-    printf("vsync_control: enable=%d exit=%d\n", enabled_, exit_);
-    if (ret)
-        printf("Failed to signal condition  thread %d\n", ret);
-    pthread_mutex_unlock(&lock_);
-    return ret;
-}
-
-void stop_boot_thread()
-{
     for (int i=0;i<MAX_OUTPUT_RSV_CNT;i++) {
-        if (mBufSlotInfo[i].bo->fd != 0 && mBufSlotInfo[i].bo->ptr != NULL) {
-            printf("release drm res:i=%d fd=0x%x fb_id=0x%x ptr=%p addr=%p\n", i,
-                    mBufSlotInfo[i].bo->fd, mBufSlotInfo[i].bo->fb_id, mBufSlotInfo[i].bo->ptr, mBufSlotInfo[i].bo);
-            bo_unmap(mBufSlotInfo[i].bo);
-            bo_destroy((mBufSlotInfo[i].bo));
-            mBufSlotInfo[i].bo = NULL;
+        if (mSfJpegBufInfo[i].bo->fd != 0 && mSfJpegBufInfo[i].bo->ptr != NULL) {
+            printf("release drm res:i=%d fd=0x%x fb_id=0x%x ptr=%p addr=%p\n", i, mSfJpegBufInfo[i].bo->fd, mSfJpegBufInfo[i].bo->fb_id, mSfJpegBufInfo[i].bo->ptr, mSfJpegBufInfo[i].bo);
+            bo_unmap(mSfJpegBufInfo[i].bo);
+            bo_destroy((mSfJpegBufInfo[i].bo));
+            mSfJpegBufInfo[i].bo = NULL;
         }
     }
-
-    pthread_mutex_lock(&lock_);
-    exit_ = true;
-    pthread_mutex_unlock(&lock_);
-    int ret = pthread_cond_signal(&cond_);
-    if (ret) {
-        printf("Failed to signal condition  thread %d\n", ret);
-        return;
-    }
-    if (pthread_join(thread_, NULL) != 0) {
-        printf("Couldn't cancel vsync thread \n");
-    }
-    pthread_cond_destroy(&cond_);
-    pthread_mutex_destroy(&lock_);
+    drm_free();
+    return 0;
 }
 
-int start_boot_thread(int mDrmFd)
+int main(int argc, char** argv)
 {
+    int                     mThreadStatus;
+    pthread_t				thread_id;
+    int drm_fd = 0;
+    int ret=-1;
     FILE* cfg_file = fopen(BOOT_ANIMATION_CONFIG_FILE, "rb");
-    pthread_condattr_t cond_attr;
-    pthread_condattr_init(&cond_attr);
-    pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
-    int ret = pthread_cond_init(&cond_, &cond_attr);
+    int mFps=50;
+    if (argc > 1)
+        mFps = atoi(argv[1]);
 
-    exit_ = false;
-    enabled_ = false;
-    if (ret) {
-        printf("Failed to int thread %s condition %d\n", ret);
-        return ret;
+    m_next_frame_time = 1000 / mFps;
+    drm_fd = open("/dev/dri/card0", O_RDWR);
+    if (drm_fd < 0)
+        printf("Failed to open dri 0 \n");
+    ret = drmSetClientCap(drm_fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+    if (ret)
+        printf("[KMS]: can't set UNIVERSAL PLANES cap.\n");
+
+    ret = drmSetClientCap(drm_fd, DRM_CLIENT_CAP_ATOMIC, 1);
+    if (ret)
+    {
+        /*If this happens, check kernel support and kernel parameters 
+         * (add i915.nuclear_pageflip=y to the kernel boot line for example) */
+        printf ("[KMS]: can't set ATOMIC caps: %s\n", strerror(errno));
     }
-
-    ret = pthread_mutex_init(&lock_, NULL);
-    if (ret) {
-        printf("Failed to init thread  lock %d\n", ret);
-        pthread_cond_destroy(&cond_);
-        return ret;
-    }
-
-    bufCnt = JPEG_OUTPUT_BUF_CNT;
-    mImageCount = 0;
+    drm_init(drm_fd);
 
     if (cfg_file) {
         char imageCnt[32];
         char path[128];
-        char mFps[32];
         if (!feof(cfg_file)) {
             fgets(imageCnt,32,cfg_file);
             fgets(path,128,cfg_file);
-            fgets(mFps,32,cfg_file);
         }
         sscanf(imageCnt, "cnt=%d", &mImageCount);
         sscanf(path, "path=%s", mBootAnimPath);
@@ -938,13 +822,11 @@ int start_boot_thread(int mDrmFd)
         char* tmp = "/media/bootanimation";
         sprintf(mBootAnimPath, "%s", tmp);
     }
-    printf("start_boot_thread: mDrmFd = %d\n", mDrmFd);
-    ret = pthread_create(&thread_, NULL, vsyncThread, &mDrmFd);
-    if (ret) {
-        printf("Could not create thread  %d\n", ret);
-        pthread_mutex_destroy(&lock_);
-        pthread_cond_destroy(&cond_);
-        return ret;
+    m_thread_run = true;
+    mThreadStatus = pthread_create(&thread_id, NULL, bootAnimation, &drm_fd);
+    while(1){
+        usleep(200*1000);
     }
+    close(drm_fd);
     return 0;
 }
