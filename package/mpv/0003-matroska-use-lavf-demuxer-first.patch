@@ -1,0 +1,31 @@
+From fb71b32c4796c752053116762f5604fe83530b68 Mon Sep 17 00:00:00 2001
+From: "james.lin" <james.lin@rock-chips.com>
+Date: Fri, 18 May 2018 17:55:30 +0800
+Subject: [PATCH] matroska use lavf demuxer first
+
+Signed-off-by: james.lin <james.lin@rock-chips.com>
+---
+ demux/demux.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/demux/demux.c b/demux/demux.c
+index 8c8600d..61ecdb2 100755
+--- a/demux/demux.c
++++ b/demux/demux.c
+@@ -71,12 +71,12 @@ const demuxer_desc_t *const demuxer_list[] = {
+ #if HAVE_TV
+     &demuxer_desc_tv,
+ #endif
+-    &demuxer_desc_matroska,
+ #if HAVE_LIBARCHIVE
+     &demuxer_desc_libarchive,
+ #endif
+     &demuxer_desc_rar,
+     &demuxer_desc_lavf,
++    &demuxer_desc_matroska,
+     &demuxer_desc_mf,
+     &demuxer_desc_playlist,
+     &demuxer_desc_null,
+-- 
+2.7.4
+
