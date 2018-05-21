@@ -4,17 +4,7 @@ LOCAL_DIR=$(pwd)
 BUILDROOT_DIR=$LOCAL_DIR/buildroot
 BUILD_OUTPUT_DIR=$LOCAL_DIR/buildroot/output
 
-rockchip_px3se_defconfig               rockchip_rk3036_recovery_defconfig     rockchip_rk3288_recovery_defconfig
-rockchip_px3se_minifs_defconfig        rockchip_rk3128H_defconfig             rockchip_rk3308_release_defconfig
-rockchip_px3se_recovery_defconfig      rockchip_rk3229_defconfig              rockchip_rk3326_defconfig
-rockchip_rk3036_common_defconfig       rockchip_rk3229_gva_pcba_defconfig     rockchip_rk3326_recovery_defconfig
-rockchip_rk3036_cpp_defconfig          rockchip_rk3229_pcba_defconfig         rockchip_rk3328_defconfig
-rockchip_rk3036_defconfig              rockchip_rk3229_recovery_defconfig     rockchip_rk3328_gtk3_defconfig
-rockchip_rk3036_dueros_defconfig       rockchip_rk322x_defconfig              rockchip_rk3399_defconfig
-rockchip_rk3036_kernel_v4_4_defconfig  rockchip_rk322x_dueros_defconfig       rockchip_rk3399_recovery_defconfig
-rockchip_rk3036_pcba_defconfig         rockchip_rk3288_defconfig
-
-DEFCONFIG_ARRAY=( "rockchip_px3se_defconfig" "rockchip_px3se_minifs_defconfig" "rockchip_px3se_recovery_defconfig" "rockchip_rk3036_common_defconfig" "rockchip_rk3036_cpp_defconfig" "rockchip_rk3036_defconfig" "rockchip_rk3036_dueros_defconfig" "rockchip_rk3036_kernel_v4_4_defconfig" "rockchip_rk3036_pcba_defconfig" "rockchip_rk3036_recovery_defconfig" "rockchip_rk3128H_defconfig" "rockchip_rk3229_defconfig" "rockchip_rk3229_gva_pcba_defconfig" "rockchip_rk3229_pcba_defconfig" "rockchip_rk3229_recovery_defconfig" "rockchip_rk322x_defconfig" "rockchip_rk322x_dueros_defconfig" "rockchip_rk3288_defconfig" "rockchip_rk3288_recovery_defconfig" "rockchip_rk3308_release_defconfig" "rockchip_rk3326_defconfig" "rockchip_rk3326_recovery_defconfig" "rockchip_rk3328_defconfig" "rockchip_rk3328_gtk3_defconfig" "rockchip_rk3399_defconfig" "rockchip_rk3399_recovery_defconfig" )
+DEFCONFIG_ARRAY=( "rockchip_px3se" "rockchip_px3se_recovery" "rockchip_rk3288" "rockchip_rk3288_recovery" "rockchip_rk3326" "rockchip_rk3326_recovery" "rockchip_rk3399" "rockchip_rk3399_recovery" )
 
 DEFCONFIG_ARRAY_LEN=${#DEFCONFIG_ARRAY[@]}
 
