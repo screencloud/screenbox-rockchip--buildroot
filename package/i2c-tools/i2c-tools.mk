@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-I2C_TOOLS_VERSION = v4.0
+I2C_TOOLS_VERSION = v3.1.2
 I2C_TOOLS_SITE = git://git.kernel.org/pub/scm/utils/i2c-tools/i2c-tools.git
 I2C_TOOLS_LICENSE = GPLv2+, GPLv2 (py-smbus)
 I2C_TOOLS_LICENSE_FILES = COPYING
@@ -51,11 +51,10 @@ define I2C_TOOLS_BUILD_CMDS
 endef
 
 define I2C_TOOLS_INSTALL_TARGET_CMDS
-	for i in i2cdump i2cget i2cset i2cdetect i2ctransfer; \
+	for i in i2cdump i2cget i2cset i2cdetect; \
 	do \
 		$(INSTALL) -m 755 -D $(@D)/tools/$$i $(TARGET_DIR)/usr/sbin/$$i; \
 	done
-	cp -d  $(@D)/lib/libi2c.so* $(TARGET_DIR)/usr/lib;
 	$(I2C_TOOLS_INSTALL_PYSMBUS)
 endef
 
