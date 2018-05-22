@@ -3,6 +3,22 @@ ifeq ($(BR2_PACKAGE_RK312X),y)
 MPP_SITE = $(TOPDIR)/../external/mpp
 MPP_VERSION = release
 MPP_SITE_METHOD = local
+else ifeq ($(BR2_PACKAGE_RK3399),y)
+MPP_SITE = $(TOPDIR)/../external/mpp
+MPP_VERSION = release
+MPP_SITE_METHOD = local
+else ifeq ($(BR2_PACKAGE_RK3288),y)
+MPP_SITE = $(TOPDIR)/../external/mpp
+MPP_VERSION = release
+MPP_SITE_METHOD = local
+else ifeq ($(BR2_PACKAGE_RK3326),y)
+MPP_SITE = $(TOPDIR)/../external/mpp
+MPP_VERSION = release
+MPP_SITE_METHOD = local
+else ifeq ($(BR2_PACKAGE_PX3SE),y)
+MPP_SITE = $(TOPDIR)/../external/mpp
+MPP_VERSION = release
+MPP_SITE_METHOD = local
 else
 MPP_SITE = "git://github.com/rockchip-linux/mpp.git"
 MPP_VERSION = release
