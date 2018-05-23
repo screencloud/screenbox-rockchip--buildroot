@@ -1,0 +1,204 @@
+From 1d771341c26127b281dacb0f817cb049bc5f966f Mon Sep 17 00:00:00 2001
+From: "dawnming.huang" <dawnming.huang@rock-chips.com>
+Date: Tue, 22 May 2018 05:29:19 -0700
+Subject: [PATCH] 1.fix setup_crtc when star play 2.setup fake crct when HDMI
+ plug out 3.primary plan set srcw srch
+
+Signed-off-by: dawnming.huang <dawnming.huang@rock-chips.com>
+---
+ video/out/drm_common.c                | 85 +++++++++++++++++++++++++++++++----
+ video/out/opengl/context_drm_egl.c    | 23 +++++++---
+ video/out/opengl/hwdec_drmprime_drm.c | 12 +++++
+ 3 files changed, 106 insertions(+), 14 deletions(-)
+
+diff --git a/video/out/drm_common.c b/video/out/drm_common.c
+index 8402ac7..97de4d2 100644
+--- a/video/out/drm_common.c
++++ b/video/out/drm_common.c
+@@ -124,6 +124,63 @@ static drmModeConnector *get_first_connected_connector(const struct kms *kms,
+     return NULL;
+ }
+ 
++
++static bool setup_fake_connector_crct_mode(struct kms *kms, const drmModeRes *res,
++                            const char *connector_name)
++{
++    // connector
++    for (int i = 0; i < res->count_connectors; i++) {
++        drmModeConnector *connector
++            = drmModeGetConnector(kms->fd, res->connectors[i]);
++        if (connector!=NULL) {
++             kms->connector = connector;
++             break;
++        } else {
++           drmModeFreeConnector(connector);
++           return false ;
++        }
++    }
++
++    //crtc
++    for (unsigned int i = 0; i < kms->connector->count_encoders; ++i) {
++        if(kms->encoder!=NULL)
++            break;
++
++        drmModeEncoder *encoder
++            = drmModeGetEncoder(kms->fd, kms->connector->encoders[i]);
++
++        if(!encoder && (i== kms->connector->count_encoders -1)){
++            drmModeFreeEncoder(encoder);
++            return false;
++        }
++        if (!encoder) {
++            MP_WARN(kms, "Cannot retrieve encoder %u:%u: %s\n",
++                    i, kms->connector->encoders[i], mp_strerror(errno));
++            continue;
++        }
++
++        for (unsigned int j = 0; j < res->count_crtcs; ++j) {
++            // check whether this CRTC works with the encoder
++            if (!(encoder->possible_crtcs & (1 << j)))
++                continue;
++            kms->encoder = encoder;
++            kms->crtc_id = res->crtcs[j];
++            break;
++        }
++
++    }
++
++    // mode
++    drmModeCrtcPtr   old_crtc = drmModeGetCrtc(kms->fd, kms->crtc_id);
++    if( old_crtc->mode.name!=NULL ){
++         kms->mode = old_crtc->mode;
++     } else {
++         drmModeFreeCrtc(old_crtc);
++         return false;
++    }
++
++    return true;
++}
+ static bool setup_connector(struct kms *kms, const drmModeRes *res,
+                             const char *connector_name)
+ {
+@@ -201,8 +258,13 @@ static bool setup_mode(struct kms *kms, int mode_id)
+         kms_show_available_modes(kms->log, kms->connector);
+         return false;
+     }
+-
+-    kms->mode = kms->connector->modes[mode_id];
++    drmModeCrtcPtr   old_crtc = drmModeGetCrtc(kms->fd, kms->crtc_id);
++    if( old_crtc->mode.name!= NULL ){
++        MP_VERBOSE(kms, "kms mode use old :old_crtc->mode.name:%s \n", old_crtc->mode.name);
++        kms->mode = old_crtc->mode;
++	}else {
++	   kms->mode = kms->connector->modes[mode_id];
++       }
+     return true;
+ }
+ 
+@@ -265,12 +327,19 @@ struct kms *kms_create(struct mp_log *log, const char *connector_spec,
+         goto err;
+     }
+ 
+-    if (!setup_connector(kms, res, connector_name))
+-        goto err;
+-    if (!setup_crtc(kms, res))
+-        goto err;
+-    if (!setup_mode(kms, mode_id))
+-        goto err;
++    if(!get_first_connected_connector(kms, res) ){
++        mp_verbose(log, "get_first_connected_connector null \n");
++        if(!setup_fake_connector_crct_mode(kms, res,connector_name)){
++            goto err;
++        }
++     } else {
++        if (!setup_connector(kms, res, connector_name))
++            goto err;
++        if (!setup_crtc(kms, res))
++            goto err;
++        if (!setup_mode(kms, mode_id))
++            goto err;
++     }
+ 
+     // Universal planes allows accessing all the planes (including primary)
+     if (drmSetClientCap(kms->fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
+diff --git a/video/out/opengl/context_drm_egl.c b/video/out/opengl/context_drm_egl.c
+index 6191309..facbf0c 100644
+--- a/video/out/opengl/context_drm_egl.c
++++ b/video/out/opengl/context_drm_egl.c
+@@ -121,12 +121,22 @@ static bool init_gbm(struct ra_ctx *ctx)
+ 
+     MP_VERBOSE(ctx->vo, "Initializing GBM surface (%d x %d)\n",
+         p->kms->mode.hdisplay, p->kms->mode.vdisplay);
+-    p->gbm.surface = gbm_surface_create(
++    if(p->kms->mode.hdisplay == 0 ||  p->kms->mode.vdisplay ==0){
++        p->gbm.surface = gbm_surface_create(
++        p->gbm.device,
++        1920,
++        1080,
++        p->primary_plane_format, // drm_fourcc.h defs should be gbm-compatible
++        GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
++    } else {
++        p->gbm.surface = gbm_surface_create(
+         p->gbm.device,
+         p->kms->mode.hdisplay,
+         p->kms->mode.vdisplay,
+         p->primary_plane_format, // drm_fourcc.h defs should be gbm-compatible
+         GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
++    }
++
+     if (!p->gbm.surface) {
+         MP_ERR(ctx->vo, "Failed to create GBM surface.\n");
+         return false;
+@@ -177,12 +187,12 @@ static bool crtc_setup(struct ra_ctx *ctx)
+     struct priv *p = ctx->priv;
+     if (p->active)
+         return true;
+-    p->old_crtc = drmModeGetCrtc(p->kms->fd, p->kms->crtc_id);
+-    int ret = drmModeSetCrtc(p->kms->fd, p->kms->crtc_id, p->fb->id,
++   /* p->old_crtc = drmModeGetCrtc(p->kms->fd, p->kms->crtc_id);
++       int ret = drmModeSetCrtc(p->kms->fd, p->kms->crtc_id, p->fb->id,
+                              0, 0, &p->kms->connector->connector_id, 1,
+-                             &p->kms->mode);
++                             &p->kms->mode);*/
+     p->active = true;
+-    return ret == 0;
++    return  true;//ret == 0;
+ }
+ 
+ static void crtc_release(struct ra_ctx *ctx)
+@@ -275,7 +285,8 @@ static void drm_egl_swap_buffers(struct ra_ctx *ctx)
+         drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "FB_ID", p->fb->id);
+         drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "CRTC_ID", atomic_ctx->crtc->id);
+         drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "ZPOS", 1);
+-
++        drm_object_set_property(atomic_ctx->request,  atomic_ctx->primary_plane, "SRC_W",   p->fb->width << 16);
++        drm_object_set_property(atomic_ctx->request,  atomic_ctx->primary_plane, "SRC_H",    p->fb->height << 16);
+         ret = drmModeAtomicCommit(p->kms->fd, atomic_ctx->request,
+                                   DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, NULL);
+         if (ret)
+diff --git a/video/out/opengl/hwdec_drmprime_drm.c b/video/out/opengl/hwdec_drmprime_drm.c
+index faa099a..2fa1989 100644
+--- a/video/out/opengl/hwdec_drmprime_drm.c
++++ b/video/out/opengl/hwdec_drmprime_drm.c
+@@ -149,6 +149,18 @@ static int overlay_frame(struct ra_hwdec *hw, struct mp_image *hw_image,
+             int srch = p->src.y1 - p->src.y0;
+             int dstw = MP_ALIGN_UP(p->dst.x1 - p->dst.x0, 2);
+             int dsth = MP_ALIGN_UP(p->dst.y1 - p->dst.y0, 2);
++            drmModeCrtcPtr crtc;
++
++            crtc = drmModeGetCrtc(p->ctx->fd, p->ctx->crtc->id);
++            if (crtc) {
++                if(crtc->mode.hdisplay != dstw || crtc->mode.vdisplay != dsth ){
++                    p->display_w = crtc->mode.hdisplay;
++                    p->display_h = crtc->mode.vdisplay;
++                    dstw = p->display_w;
++                    dsth = p->display_h;
++                }
++                drmModeFreeCrtc(crtc);
++            }
+ 
+             if (drm_prime_create_framebuffer(p->log, p->ctx->fd, desc, srcw, srch, &next_frame.fb)) {
+                 ret = -1;
+-- 
+1.9.1
+
