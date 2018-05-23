@@ -11,25 +11,25 @@ case "$1" in
 		export QT_QPA_EVDEV_KEYBOARD_PARAMETERS=/dev/input/event1:/dev/input/event2
 
 		#for kmssink
-		export QT_GSTREAMER_WINDOW_VIDEOSINK=kmssink
+		#export QT_GSTREAMER_WINDOW_VIDEOSINK=kmssink
 
 		#for waylandsink
-		#export QT_GSTREAMER_WINDOW_VIDEOSINK=waylandsink
+		export QT_GSTREAMER_WINDOW_VIDEOSINK=waylandsink
 
 		#for QLauncher wayland
 		mkdir -p /tmp/.xdg &&  chmod 0700 /tmp/.xdg
 		export XDG_RUNTIME_DIR=/tmp/.xdg
 		weston --tty=2 --idle-time=0&
 		sleep 1
-		#/usr/local/QLauncher/QLauncher -platform wayland -plugin EvdevTouch -plugin EvdevKeyboard &
+		/usr/local/QLauncher/QLauncher -platform wayland -plugin EvdevTouch -plugin EvdevKeyboard &
 
 		#for Carmachine wayland
-		/usr/bin/Carmachine -platform wayland -plugin EvdevTouch -plugin EvdevKeyboard &
+		#/usr/bin/Carmachine -platform wayland -plugin EvdevTouch -plugin EvdevKeyboard &
 
 	;;
   stop)
-		#killall QLauncher
-		killall CarMachine
+		killall QLauncher
+		#killall CarMachine
 		killall weston
 		printf "stop finished"
         ;;
