@@ -1,0 +1,168 @@
+From 4b6b03a9daaf37dd2fec4f2d22566730d5f5172e Mon Sep 17 00:00:00 2001
+From: "dawnming.huang" <dawnming.huang@rock-chips.com>
+Date: Thu, 24 May 2018 00:05:07 -0700
+Subject: [PATCH]  1.setup crct when release
+
+ 2.when hdmi plug out, no atmoiccommit and wait fd event
+
+Signed-off-by: dawnming.huang <dawnming.huang@rock-chips.com>
+---
+ libmpv/opengl_cb.h                    |  5 +++
+ video/out/opengl/context_drm_egl.c    | 67 ++++++++++++++++++++---------------
+ video/out/opengl/hwdec_drmprime_drm.c | 19 ++++------
+ 3 files changed, 51 insertions(+), 40 deletions(-)
+
+diff --git a/libmpv/opengl_cb.h b/libmpv/opengl_cb.h
+index ccafbf5..8652ab9 100644
+--- a/libmpv/opengl_cb.h
++++ b/libmpv/opengl_cb.h
+@@ -198,6 +198,11 @@ struct mpv_opengl_cb_drm_params {
+     // pointer to the drmModeAtomicReq that is being used for the renderloop.
+     // This atomic request pointer should be usually created at every renderloop.
+     struct _drmModeAtomicReq *atomic_request;
++
++    // KMS vdisplay hdisply
++    int hdisplay;
++    int vdisplay;
++
+ };
+ 
+ /**
+diff --git a/video/out/opengl/context_drm_egl.c b/video/out/opengl/context_drm_egl.c
+index facbf0c..b1c1817 100644
+--- a/video/out/opengl/context_drm_egl.c
++++ b/video/out/opengl/context_drm_egl.c
+@@ -187,8 +187,8 @@ static bool crtc_setup(struct ra_ctx *ctx)
+     struct priv *p = ctx->priv;
+     if (p->active)
+         return true;
+-   /* p->old_crtc = drmModeGetCrtc(p->kms->fd, p->kms->crtc_id);
+-       int ret = drmModeSetCrtc(p->kms->fd, p->kms->crtc_id, p->fb->id,
++    p->old_crtc = drmModeGetCrtc(p->kms->fd, p->kms->crtc_id);
++    /*  int ret = drmModeSetCrtc(p->kms->fd, p->kms->crtc_id, p->fb->id,
+                              0, 0, &p->kms->connector->connector_id, 1,
+                              &p->kms->mode);*/
+     p->active = true;
+@@ -258,6 +258,13 @@ static void acquire_vt(void *data)
+ static bool drm_atomic_egl_start_frame(struct ra_swapchain *sw, struct ra_fbo *out_fbo)
+ {
+     struct priv *p = sw->ctx->priv;
++    drmModeCrtcPtr crtc;
++    crtc = drmModeGetCrtc(p->kms->fd, p->kms->crtc_id);
++    if (crtc) {
++        p->drm_params.hdisplay= crtc->mode.hdisplay;
++        p->drm_params.vdisplay= crtc->mode.vdisplay;
++        drmModeFreeCrtc(crtc);
++    }
+     if (p->kms->atomic_context) {
+         p->kms->atomic_context->request = drmModeAtomicAlloc();
+         p->drm_params.atomic_request = p->kms->atomic_context->request;
+@@ -281,34 +288,36 @@ static void drm_egl_swap_buffers(struct ra_ctx *ctx)
+     p->waiting_for_flip = true;
+     update_framebuffer_from_bo(ctx, p->gbm.next_bo);
+ 
+-    if (atomic_ctx) {
+-        drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "FB_ID", p->fb->id);
+-        drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "CRTC_ID", atomic_ctx->crtc->id);
+-        drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "ZPOS", 1);
+-        drm_object_set_property(atomic_ctx->request,  atomic_ctx->primary_plane, "SRC_W",   p->fb->width << 16);
+-        drm_object_set_property(atomic_ctx->request,  atomic_ctx->primary_plane, "SRC_H",    p->fb->height << 16);
+-        ret = drmModeAtomicCommit(p->kms->fd, atomic_ctx->request,
+-                                  DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, NULL);
+-        if (ret)
+-            MP_WARN(ctx->vo, "Failed to commit atomic request (%d)\n", ret);
+-    } else {
+-        ret = drmModePageFlip(p->kms->fd, p->kms->crtc_id, p->fb->id,
+-                                  DRM_MODE_PAGE_FLIP_EVENT, p);
+-        if (ret) {
+-            MP_WARN(ctx->vo, "Failed to queue page flip: %s\n", mp_strerror(errno));
++    if(p->drm_params.hdisplay != 0 && p->drm_params.vdisplay != 0){
++        if (atomic_ctx) {
++            drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "FB_ID", p->fb->id);
++            drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "CRTC_ID", atomic_ctx->crtc->id);
++            drm_object_set_property(atomic_ctx->request, atomic_ctx->primary_plane, "ZPOS", 1);
++            drm_object_set_property(atomic_ctx->request,  atomic_ctx->primary_plane, "SRC_W",   p->fb->width << 16);
++            drm_object_set_property(atomic_ctx->request,  atomic_ctx->primary_plane, "SRC_H",    p->fb->height << 16);
++            ret = drmModeAtomicCommit(p->kms->fd, atomic_ctx->request,
++                                      DRM_MODE_ATOMIC_NONBLOCK | DRM_MODE_PAGE_FLIP_EVENT, NULL);
++            if (ret)
++                MP_WARN(ctx->vo, "Failed to commit atomic request (%d)\n", ret);
++        } else {
++            ret = drmModePageFlip(p->kms->fd, p->kms->crtc_id, p->fb->id,
++                                      DRM_MODE_PAGE_FLIP_EVENT, p);
++            if (ret) {
++                MP_WARN(ctx->vo, "Failed to queue page flip: %s\n", mp_strerror(errno));
++            }
+         }
+-    }
+ 
+-    // poll page flip finish event
+-    const int timeout_ms = 3000;
+-    struct pollfd fds[1] = { { .events = POLLIN, .fd = p->kms->fd } };
+-    poll(fds, 1, timeout_ms);
+-    if (fds[0].revents & POLLIN) {
+-        ret = drmHandleEvent(p->kms->fd, &p->ev);
+-        if (ret != 0) {
+-            MP_ERR(ctx->vo, "drmHandleEvent failed: %i\n", ret);
+-            p->waiting_for_flip = false;
+-            return;
++        // poll page flip finish event
++        const int timeout_ms = 3000;
++        struct pollfd fds[1] = { { .events = POLLIN, .fd = p->kms->fd } };
++        poll(fds, 1, timeout_ms);
++        if (fds[0].revents & POLLIN) {
++            ret = drmHandleEvent(p->kms->fd, &p->ev);
++            if (ret != 0) {
++                MP_ERR(ctx->vo, "drmHandleEvent failed: %i\n", ret);
++                p->waiting_for_flip = false;
++                return;
++            }
+         }
+     }
+     p->waiting_for_flip = false;
+@@ -462,6 +471,8 @@ static bool drm_egl_init(struct ra_ctx *ctx)
+ 
+     p->drm_params.fd = p->kms->fd;
+     p->drm_params.crtc_id = p->kms->crtc_id;
++    p->drm_params.hdisplay= p->kms->mode.hdisplay;
++    p->drm_params.vdisplay= p->kms->mode.vdisplay;
+     if (p->kms->atomic_context)
+         p->drm_params.atomic_request = p->kms->atomic_context->request;
+     struct ra_gl_ctx_params params = {
+diff --git a/video/out/opengl/hwdec_drmprime_drm.c b/video/out/opengl/hwdec_drmprime_drm.c
+index 2fa1989..88b5cae 100644
+--- a/video/out/opengl/hwdec_drmprime_drm.c
++++ b/video/out/opengl/hwdec_drmprime_drm.c
+@@ -144,22 +144,17 @@ static int overlay_frame(struct ra_hwdec *hw, struct mp_image *hw_image,
+         next_frame.image = hw_image;
+         desc = (AVDRMFrameDescriptor *)hw_image->planes[0];
+ 
+-        if (desc) {
++        if (desc && drmparams->vdisplay !=0 && drmparams->hdisplay !=0) {
+             int srcw = p->src.x1 - p->src.x0;
+             int srch = p->src.y1 - p->src.y0;
+             int dstw = MP_ALIGN_UP(p->dst.x1 - p->dst.x0, 2);
+             int dsth = MP_ALIGN_UP(p->dst.y1 - p->dst.y0, 2);
+-            drmModeCrtcPtr crtc;
+-
+-            crtc = drmModeGetCrtc(p->ctx->fd, p->ctx->crtc->id);
+-            if (crtc) {
+-                if(crtc->mode.hdisplay != dstw || crtc->mode.vdisplay != dsth ){
+-                    p->display_w = crtc->mode.hdisplay;
+-                    p->display_h = crtc->mode.vdisplay;
+-                    dstw = p->display_w;
+-                    dsth = p->display_h;
+-                }
+-                drmModeFreeCrtc(crtc);
++
++            if(drmparams->hdisplay != dstw || drmparams->vdisplay != dsth ){
++                p->display_w = drmparams->hdisplay;
++                p->display_h = drmparams->vdisplay;
++                dstw = p->display_w;
++                dsth = p->display_h;
+             }
+ 
+             if (drm_prime_create_framebuffer(p->log, p->ctx->fd, desc, srcw, srch, &next_frame.fb)) {
+-- 
+1.9.1
+
