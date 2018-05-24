@@ -36,12 +36,64 @@
 #define LOG_FILE_PATH "/tmp/recovery/log"
 #define COMMAND_FILE_PATH "/tmp/recovery/command"
 #else
-#define RECOVERY_PATH "/data/recovery"
-#define LOG_FILE_PATH "/data/recovery/log"
-#define COMMAND_FILE_PATH "/data/recovery/command"
+#define RECOVERY_PATH "/mnt/userdata/recovery"
+#define LOG_FILE_PATH "/mnt/userdata/recovery/log"
+#define COMMAND_FILE_PATH "/mnt/userdata/recovery/command"
 #endif
-#define SD_UPDATE_FILE "/sdcard/update.img"
-#define DATA_UPDATE_FILE "/data/update.img"
+#define SD_UPDATE_FILE "/mnt/sdcard/update.img"
+#define DATA_UPDATE_FILE "/mnt/userdata/update.img"
+#define MISC_FILE_PATH "/dev/block/platform/fe330000.sdhci/by-name/misc"
+#define MISC_MSG_OFFSET 16 * 1024
+
+/* Bootloader Message (2-KiB)
+ *
+ * This structure describes the content of a block in flash
+ * that is used for recovery and the bootloader to talk to
+ * each other.
+ *
+ * The command field is updated by linux when it wants to
+ * reboot into recovery or to update radio or bootloader firmware.
+ * It is also updated by the bootloader when firmware update
+ * is complete (to boot into recovery for any final cleanup)
+ *
+ * The status field is written by the bootloader after the
+ * completion of an "update-radio" or "update-hboot" command.
+ *
+ * The recovery field is only written by linux and used
+ * for the system to send a message to recovery or the
+ * other way around.
+ *
+ * The stage field is written by packages which restart themselves
+ * multiple times, so that the UI can reflect which invocation of the
+ * package it is.  If the value is of the format "#/#" (eg, "1/3"),
+ * the UI will add a simple indicator of that status.
+ *
+ * We used to have slot_suffix field for A/B boot control metadata in
+ * this struct, which gets unintentionally cleared by recovery or
+ * uncrypt. Move it into struct bootloader_message_ab to avoid the
+ * issue.
+ */
+struct android_bootloader_message {
+    char command[32];
+    char status[32];
+    char recovery[768];
+
+    /* The 'recovery' field used to be 1024 bytes.  It has only ever
+     * been used to store the recovery command line, so 768 bytes
+     * should be plenty.  We carve off the last 256 bytes to store the
+     * stage string (for multistage packages) and possible future
+     * expansion. */
+    char stage[32];
+
+    /* The 'reserved' field used to be 224 bytes when it was initially
+     * carved off from the 1024-byte recovery field. Bump it up to
+     * 1184-byte so that the entire bootloader_message struct rounds up
+     * to 2048-byte. */
+    char reserved[1184];
+};
+
+
+
 /**
  * Reboot into the recovery system with the supplied argument.
  * @param arg to pass to the recovery utility.
@@ -49,9 +101,11 @@
 static void bootCommand(char *arg){
 	FILE *command_file;
 	FILE *log_file;
+	FILE *misc_file;
 	char blank[LOG_FILE_LEN];
 	
 	if(!arg) return;
+	printf("command: %s\n", arg);
 	mkdir(RECOVERY_PATH,0775); 
 	if((command_file = fopen(COMMAND_FILE_PATH,"wb")) == NULL){
  		printf("Open command file error.\n");
@@ -62,12 +116,31 @@ static void bootCommand(char *arg){
  		printf("Open log file error.\n");
 		return;
 	}
+
+	if((misc_file = fopen(MISC_FILE_PATH,"wb")) == NULL){
+		printf("Open misc file error.\n");
+		return;
+	}
  
-	printf("update: write command: ");			
+	printf("update: write command to command file: ");
  	fwrite(arg, strlen(arg), 1, command_file);
  	fwrite("\n", 1, 1, command_file);
  	fclose(command_file);
  	printf("done\n");
+
+	printf("update: write command to misc file: ");
+	fseek(misc_file, MISC_MSG_OFFSET, SEEK_SET);
+	struct android_bootloader_message msg;
+	memset(&msg, 0, sizeof(msg));
+	strcpy(msg.command, "boot-recovery");
+	//memcpy(msg.recovery, arg, ((strlen(arg) > sizeof(msg.recovery))? sizeof(msg.recovery) : strlen(arg)));
+	//strlcat(msg.recovery, update_file, sizeof(msg.recovery));
+	//strlcat(msg.recovery, "\n", sizeof(msg.recovery));
+	//strlcpy(msg.systemFlag, "false", sizeof(msg.systemFlag));
+	fwrite(&msg, sizeof(msg), 1, misc_file);
+	fclose(misc_file);
+	printf("done\n");
+
  	memset(blank, 0, LOG_FILE_LEN);
  	fwrite(blank, LOG_FILE_LEN, 1, log_file);
  	fclose(log_file);
