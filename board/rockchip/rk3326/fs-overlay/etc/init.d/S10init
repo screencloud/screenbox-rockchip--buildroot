@@ -27,13 +27,13 @@ case "$1" in
 		sleep 5   #wait for ueventd finish scan and create mount point
         mount -a
 
-		ln -s /dev/block/platform/fe330000.sdhci/by-name/misc /misc
+		ln -s /dev/block/platform/ff390000.dwmmc/by-name/misc /misc
 		#Resize oem, rootfs partition to fit available disk space
-		resize2fs /dev/block/platform/fe330000.sdhci/by-name/oem
-		resize2fs /dev/block/platform/fe330000.sdhci/by-name/rootfs
+		resize2fs /dev/block/platform/ff390000.dwmmc/by-name/oem
+		resize2fs /dev/block/platform/ff390000.dwmmc/by-name/rootfs
 
 		#Resize userdata partition to fit available disk space
-		#resize2fs /dev/block/platform/fe330000.sdhci/by-name/userdata
+		#resize2fs /dev/block/platform/ff390000.dwmmc/by-name/userdata
 		;;
 	stop)
 		printf "stop finished"
