@@ -132,8 +132,11 @@ static void bootCommand(char *arg){
 	fseek(misc_file, MISC_MSG_OFFSET, SEEK_SET);
 	struct android_bootloader_message msg;
 	memset(&msg, 0, sizeof(msg));
+	char recovery_str[] = "recovery\n";
 	strcpy(msg.command, "boot-recovery");
-	//memcpy(msg.recovery, arg, ((strlen(arg) > sizeof(msg.recovery))? sizeof(msg.recovery) : strlen(arg)));
+	strcpy(msg.recovery, recovery_str);
+	memcpy(msg.recovery + strlen(recovery_str), arg, ((strlen(arg) > sizeof(msg.recovery))? sizeof(msg.recovery) : strlen(arg)));
+	msg.recovery[strlen(msg.recovery) + 1] = '\n';
 	//strlcat(msg.recovery, update_file, sizeof(msg.recovery));
 	//strlcat(msg.recovery, "\n", sizeof(msg.recovery));
 	//strlcpy(msg.systemFlag, "false", sizeof(msg.systemFlag));
