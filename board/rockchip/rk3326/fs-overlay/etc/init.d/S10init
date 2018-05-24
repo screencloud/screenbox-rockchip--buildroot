@@ -5,18 +5,26 @@
 
 case "$1" in
 	start)
-        #Resize root/userdata filesystem to fit available disk space
-        resize2fs /dev/mmcblk1p8
-        resize2fs /dev/mmcblk1p9
+		#Resize root/userdata filesystem to fit available disk space
+		resize2fs /dev/mmcblk1p8
+		resize2fs /dev/mmcblk1p9
 
 		# Mount debugfs
 		mount -t debugfs none /sys/kernel/debug
 
-        # bluetooth
-        rkbt /etc/bluetooth/bcm43438a0.hcd /dev/ttyS1 &
+		# bluetooth
+		rkbt /etc/bluetooth/broadcom/fw/bcm43438a0.hcd /dev/ttyS1 &
 
-        # music
+		# music
 		/usr/bin/audioservice &
+
+		#alsa conf
+		BUILDROOT_TARGET_PATH=$(pwd)/../../../../../../../buildroot/output/target
+		CARD=rk817
+		ALSA_CARD_NAME=rockchip_rk817-
+		ALSA_CARDS_PATH=${BUILDROOT_TARGET_PATH}/usr/share/alsa/cards
+		cp usr/share/alsa/cards/${CARD}.conf ${ALSA_CARDS_PATH}/
+		sed -i "4a${ALSA_CARD_NAME} cards.${CARD}" /usr/share/alsa/cards/aliases.conf
 
 		echo performance > /sys/class/devfreq/ff9a0000.gpu/governor
 		echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
@@ -25,7 +33,7 @@ case "$1" in
 		/usr/bin/ueventd &
 
 		sleep 5   #wait for ueventd finish scan and create mount point
-        mount -a
+		mount -a
 
 		ln -s /dev/block/platform/ff390000.dwmmc/by-name/misc /misc
 		#Resize oem, rootfs partition to fit available disk space
