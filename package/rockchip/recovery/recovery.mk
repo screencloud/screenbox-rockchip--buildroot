@@ -17,6 +17,8 @@ RECOVERY_BUILD_OPTS=-I$(PROJECT_DIR) -I$(STAGING_DIR)/usr/include/libdrm \
 	-fPIC \
 	-lz -lpthread -lpng -ldrm
 
+#TARGET_MAKE_ENV += RecoveryNoUi=true
+
 RECOVERY_MAKE_OPTS = \
         CFLAGS="$(TARGET_CFLAGS) $(RECOVERY_BUILD_OPTS)" \
         PROJECT_DIR="$(@D)"
