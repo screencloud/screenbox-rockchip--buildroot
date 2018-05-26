@@ -32,16 +32,16 @@ auto_mount() {
 	if [ "${flash_type}" == "/dev/rknand_rootfs" ];then
 		local fdir="/dev/rknand_"
 		if [ "${data_type}" == "ext4" ];then
-			e2fsck -fy ${fdir}data
-			resize2fs ${fdir}data
+			e2fsck -fy ${fdir}userdata
+			resize2fs ${fdir}userdata
 		fi
 		if [ "${cfg_type}" == "ext4" ];then
-			e2fsck -fy ${fdir}cfg
-			resize2fs ${fdir}cfg
+			e2fsck -fy ${fdir}oem
+			resize2fs ${fdir}oem
 		fi
 
-		mount -t ${data_type} ${fdir}data /data
-		mount -t ${cfg_type} ${fdir}cfg /data/cfg
+		mount -t ${data_type} ${fdir}userdata /mnt/userdata
+		mount -t ${cfg_type} ${fdir}oem /mnt/oem
 		return 0
 	fi
 
@@ -62,16 +62,16 @@ auto_mount() {
 		done
 
 		if [ "${data_type}" == "ext4" ];then
-			e2fsck -fy ${fdir}/data
-			resize2fs ${fdir}/data
+			e2fsck -fy /dev/mmcblk2p9
+			resize2fs /dev/mmcblk2p9
 		fi
 		if [ "${cfg_type}" == "ext4" ];then
-			e2fsck -fy ${fdir}/cfg
-			resize2fs ${fdir}/cfg
+			e2fsck -fy /dev/mmcblk2p10
+			resize2fs /dev/mmcblk2p10
 		fi
 
-		mount -t ${data_type} ${fdir}/data /data
-		mount -t ${cfg_type} ${fdir}/cfg /data/cfg
+		mount -t ${data_type} /dev/mmcblk2p10 /userdata
+		mount -t ${cfg_type} /dev/mmcblk2p9 /oem
 		return 0
 	fi
 
