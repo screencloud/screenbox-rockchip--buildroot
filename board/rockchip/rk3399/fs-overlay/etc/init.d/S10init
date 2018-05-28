@@ -24,12 +24,6 @@ case "$1" in
                 mount -a
 
 		ln -s /dev/block/platform/fe330000.sdhci/by-name/misc /misc
-		#Resize oem, rootfs partition to fit available disk space
-		resize2fs /dev/block/platform/fe330000.sdhci/by-name/oem
-		resize2fs /dev/block/platform/fe330000.sdhci/by-name/rootfs
-
-		#Resize userdata partition to fit available disk space
-		#resize2fs /dev/block/platform/fe330000.sdhci/by-name/userdata
 		;;
 	stop)
 		printf "stop finished"
