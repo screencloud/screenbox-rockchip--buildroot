@@ -19,10 +19,11 @@
 ::sysinit:/bin/mkdir -p /dev/pts
 ::sysinit:/bin/mkdir -p /dev/shm
 ::sysinit:/bin/mkdir -p /mnt
-::sysinit:/bin/mkdir -p /mnt/oem
-::sysinit:/bin/mkdir -p /mnt/udisk
-::sysinit:/bin/mkdir -p /mnt/sdcard
-::sysinit:/bin/mkdir -p /mnt/userdata
+::sysinit:/bin/mkdir -p /oem
+::sysinit:/bin/mkdir -p /udisk
+::sysinit:/bin/mkdir -p /sdcard
+::sysinit:/bin/mkdir -p /userdata
+::sysinit:/bin/ln -s /userdata /data
 ::sysinit:/bin/mount -a
 ::sysinit:/bin/hostname -F /etc/hostname
 # now run any rc scripts
