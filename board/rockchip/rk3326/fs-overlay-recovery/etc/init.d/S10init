@@ -5,32 +5,18 @@
 
 case "$1" in
 	start)
-
 		# Mount debugfs
 		mount -t debugfs none /sys/kernel/debug
 
-		# bluetooth
-		rkbt /etc/bluetooth/broadcom/fw/bcm43438a0.hcd /dev/ttyS1 &
-
-		# music
-		/usr/bin/audioservice &
-
-		echo performance > /sys/class/devfreq/ff9a0000.gpu/governor
 		echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 
 		# ueventd
 		/usr/bin/ueventd &
 
 		sleep 5   #wait for ueventd finish scan and create mount point
-        	mount -a
+		mount -a
 
-		ln -s /dev/block/platform/ff390000.dwmmc/by-name/misc	/misc
-		#Resize oem, rootfs partition to fit available disk space
-		resize2fs /dev/block/platform/ff390000.dwmmc/by-name/oem
-		resize2fs /dev/block/platform/ff390000.dwmmc/by-name/rootfs
-
-		#Resize userdata partition to fit available disk space
-		#resize2fs /dev/block/platform/ff390000.dwmmc/by-name/userdata
+		ln -s /dev/block/platform/ff390000.dwmmc/by-name/misc /misc
 		;;
 	stop)
 		printf "stop finished"
