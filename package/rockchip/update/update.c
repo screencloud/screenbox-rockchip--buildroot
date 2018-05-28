@@ -36,12 +36,12 @@
 #define LOG_FILE_PATH "/tmp/recovery/log"
 #define COMMAND_FILE_PATH "/tmp/recovery/command"
 #else
-#define RECOVERY_PATH "/mnt/userdata/recovery"
-#define LOG_FILE_PATH "/mnt/userdata/recovery/log"
-#define COMMAND_FILE_PATH "/mnt/userdata/recovery/command"
+#define RECOVERY_PATH "/userdata/recovery"
+#define LOG_FILE_PATH "/userdata/recovery/log"
+#define COMMAND_FILE_PATH "/userdata/recovery/command"
 #endif
-#define SD_UPDATE_FILE "/mnt/sdcard/update.img"
-#define DATA_UPDATE_FILE "/mnt/userdata/update.img"
+#define SD_UPDATE_FILE "/sdcard/update.img"
+#define DATA_UPDATE_FILE "/userdata/update.img"
 #define MISC_FILE_PATH "/dev/block/platform/fe330000.sdhci/by-name/misc"
 #define MISC_MSG_OFFSET 16 * 1024
 
@@ -198,8 +198,8 @@ static void dataUpdate(){
  *
  */
 void rebootWipeUserData(){
-	printf("update: --wipe_data\n");
-        bootCommand("--wipe_data");
+	printf("update: --wipe_all\n");
+        bootCommand("--wipe_all");
 }
 
 int rebootUpdate(char *path){
