@@ -1,0 +1,74 @@
+From 3ce046c5792e1940fd327f157ca63d3fac5a8d1e Mon Sep 17 00:00:00 2001
+From: Jeffy Chen <jeffy.chen@rock-chips.com>
+Date: Mon, 28 May 2018 20:33:34 +0800
+Subject: [PATCH] Port to buildroot
+
+---
+ CMakeLists.txt |  4 +++-
+ main.cpp       |  2 +-
+ mpp/Codec.h    | 22 +++++++++++-----------
+ 3 files changed, 15 insertions(+), 13 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3fac5d4..c9d3c14 100755
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -12,5 +12,7 @@ set(SOURCE_FILES main.cpp
+         rkdrm/dev.c
+         rkdrm/modeset.c)
+ 
++include_directories(SYSTEM "/usr/include/libdrm")
++
+ add_executable(mpp_linux_demo ${SOURCE_FILES})
+-target_link_libraries(mpp_linux_demo mpp pthread drm)
+\ No newline at end of file
++target_link_libraries(mpp_linux_demo rockchip_mpp pthread drm)
+diff --git a/main.cpp b/main.cpp
+index 41f9c74..5d5f15b 100755
+--- a/main.cpp
++++ b/main.cpp
+@@ -12,7 +12,7 @@
+ extern "C" {
+ #include <stdlib.h>
+ #include <signal.h>
+-#include "rk_mpi.h"
++#include "rockchip/rk_mpi.h"
+ }
+ 
+ #define dbg(fmt,...)\
+diff --git a/mpp/Codec.h b/mpp/Codec.h
+index 983b718..ecbd862 100755
+--- a/mpp/Codec.h
++++ b/mpp/Codec.h
+@@ -13,17 +13,17 @@ extern "C" {
+ #include <unistd.h>
+ #include <sys/time.h>
+ 
+-#include "vpu.h"
+-#include "rk_mpi.h"
+-#include "rk_type.h"
+-#include "vpu_api.h"
+-#include "mpp_err.h"
+-#include "mpp_task.h"
+-#include "mpp_meta.h"
+-#include "mpp_frame.h"
+-#include "mpp_buffer.h"
+-#include "mpp_packet.h"
+-#include "rk_mpi_cmd.h"
++#include "rockchip/vpu.h"
++#include "rockchip/rk_mpi.h"
++#include "rockchip/rk_type.h"
++#include "rockchip/vpu_api.h"
++#include "rockchip/mpp_err.h"
++#include "rockchip/mpp_task.h"
++#include "rockchip/mpp_meta.h"
++#include "rockchip/mpp_frame.h"
++#include "rockchip/mpp_buffer.h"
++#include "rockchip/mpp_packet.h"
++#include "rockchip/rk_mpi_cmd.h"
+ 
+ #include "../rkdrm/bo.h"
+ #include "../rkdrm/dev.h"
+-- 
+2.11.0
+

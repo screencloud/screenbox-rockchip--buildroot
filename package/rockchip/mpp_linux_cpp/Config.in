@@ -1,0 +1,3 @@
+menuconfig BR2_PACKAGE_MPP_LINUX_CPP
+	bool "MPP(Multimedia Processing Platform) demo"
+        depends on BR2_PACKAGE_MPP
