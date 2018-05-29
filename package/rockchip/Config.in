@@ -100,4 +100,5 @@ source "package/rockchip/QLauncher/Config.in"
 source "package/rockchip/settings/Config.in"
 source "package/rockchip/powermanager/Config.in"
 source "package/rockchip/audioservice/Config.in"
+source "package/rockchip/securityAuth/Config.in"
 endif
