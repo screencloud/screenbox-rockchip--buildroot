@@ -12,10 +12,6 @@ case "$1" in
 		
 		# ueventd
 		/usr/bin/ueventd &
-		sleep 5   #wait for ueventd finish scan and create mount point
-                mount -a
-
-		ln -s /dev/block/platform/fe330000.sdhci/by-name/misc /misc
 		;;
 	stop)
 		printf "stop finished"
