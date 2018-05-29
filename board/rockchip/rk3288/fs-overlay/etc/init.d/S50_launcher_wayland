@@ -12,10 +12,10 @@ case "$1" in
 		export QT_QPA_PLATFORM=wayland
 
 		#for kmssink
-		#export QT_GSTREAMER_WINDOW_VIDEOSINK=kmssink
+		export QT_GSTREAMER_WINDOW_VIDEOSINK=kmssink
 
 		#for waylandsink
-		export QT_GSTREAMER_WINDOW_VIDEOSINK=waylandsink
+		#export QT_GSTREAMER_WINDOW_VIDEOSINK=waylandsink
 
 		#for QLauncher wayland
 		mkdir -p /tmp/.xdg &&  chmod 0700 /tmp/.xdg
