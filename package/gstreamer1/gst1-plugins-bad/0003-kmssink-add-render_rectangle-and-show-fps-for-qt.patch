@@ -158,11 +158,11 @@ index d19e19e..d73cddd 100644
 +
 +  if ((GST_VIDEO_INFO_FORMAT(&self->vinfo) == GST_VIDEO_FORMAT_P010_10LE) && (src.w >= 3840))
 +	  src.h /=2;
-+  if((GST_VIDEO_INFO_FORMAT(&self->vinfo) == GST_VIDEO_FORMAT_P010_10LE) && (result.h <= 1200))
++  /*if((GST_VIDEO_INFO_FORMAT(&self->vinfo) == GST_VIDEO_FORMAT_P010_10LE) && (result.h <= 1200))
 +	{
 +		result.y = result.y - (1200 - result.h)/2;
 +		result.h = 1200;
-+	}
++	}*/ //why?
 +
    GST_TRACE_OBJECT (self,
        "drmModeSetPlane at (%i,%i) %ix%i sourcing at (%i,%i) %ix%i",
