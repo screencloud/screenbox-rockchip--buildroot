@@ -40,8 +40,8 @@ auto_mount() {
 			resize2fs ${fdir}oem
 		fi
 
-		mount -t ${data_type} ${fdir}userdata /mnt/userdata
-		mount -t ${cfg_type} ${fdir}oem /mnt/oem
+		mount -t ${data_type} ${fdir}userdata /userdata
+		mount -t ${cfg_type} ${fdir}oem /oem
 		return 0
 	fi
 
