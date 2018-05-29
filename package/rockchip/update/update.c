@@ -42,7 +42,7 @@
 #endif
 #define SD_UPDATE_FILE "/sdcard/update.img"
 #define DATA_UPDATE_FILE "/userdata/update.img"
-#define MISC_FILE_PATH "/dev/block/platform/fe330000.sdhci/by-name/misc"
+#define MISC_FILE_PATH "/misc"
 #define MISC_MSG_OFFSET 16 * 1024
 
 /* Bootloader Message (2-KiB)
