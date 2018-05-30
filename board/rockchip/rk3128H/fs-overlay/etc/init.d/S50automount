@@ -30,7 +30,7 @@ auto_mount() {
 	local flash_type="${flash_type%% *}"
 
 	if [ "${flash_type}" == "/dev/rknand_rootfs" ];then
-		local fdir="/dev/rknand_"
+		local fdir="dev/block/by-name/"
 		if [ "${data_type}" == "ext4" ];then
 			e2fsck -fy ${fdir}userdata
 			resize2fs ${fdir}userdata
