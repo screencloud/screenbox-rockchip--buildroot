@@ -101,4 +101,5 @@ source "package/rockchip/settings/Config.in"
 source "package/rockchip/powermanager/Config.in"
 source "package/rockchip/audioservice/Config.in"
 source "package/rockchip/securityAuth/Config.in"
+source "package/rockchip/recoverySystem/Config.in"
 endif
