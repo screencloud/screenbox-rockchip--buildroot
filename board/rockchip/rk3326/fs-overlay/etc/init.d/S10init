@@ -5,10 +5,6 @@
 
 case "$1" in
 	start)
-		#Resize root/userdata filesystem to fit available disk space
-		resize2fs /dev/mmcblk1p8
-		resize2fs /dev/mmcblk1p9
-
 		# Mount debugfs
 		mount -t debugfs none /sys/kernel/debug
 
@@ -28,17 +24,6 @@ case "$1" in
 
 		# ueventd
 		/usr/bin/ueventd &
-
-		sleep 2   #wait for ueventd finish scan and create mount point
-		mount -a
-
-		ln -s /dev/block/platform/ff390000.dwmmc/by-name/misc /misc
-		#Resize oem, rootfs partition to fit available disk space
-		resize2fs /dev/block/platform/ff390000.dwmmc/by-name/oem
-		resize2fs /dev/block/platform/ff390000.dwmmc/by-name/rootfs
-
-		#Resize userdata partition to fit available disk space
-		#resize2fs /dev/block/platform/ff390000.dwmmc/by-name/userdata
 		;;
 	stop)
 		printf "stop finished"

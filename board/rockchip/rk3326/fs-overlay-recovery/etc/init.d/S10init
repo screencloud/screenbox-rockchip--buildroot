@@ -9,14 +9,9 @@ case "$1" in
 		mount -t debugfs none /sys/kernel/debug
 
 		echo performance > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-
+		
 		# ueventd
 		/usr/bin/ueventd &
-
-		sleep 5   #wait for ueventd finish scan and create mount point
-		mount -a
-
-		ln -s /dev/block/platform/ff390000.dwmmc/by-name/misc /misc
 		;;
 	stop)
 		printf "stop finished"
