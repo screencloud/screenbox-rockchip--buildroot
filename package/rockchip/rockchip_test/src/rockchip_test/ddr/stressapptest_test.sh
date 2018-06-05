@@ -1,12 +1,12 @@
 #!/bin/sh
 
 DDR_DIR=/rockchip_test/ddr
-RESULT_DIR=/data/cfg/rockchip_test
+RESULT_DIR=/data/rockchip_test
 RESULT_LOG=${RESULT_DIR}/stressapptest.log
 
-if [ ! -e "/data/cfg/rockchip_test" ]; then
-	echo "no /data/cfg/rockchip_test"
-	mkdir /data/cfg/rockchip_test
+if [ ! -e "/data/rockchip_test" ]; then
+	echo "no /data/rockchip_test"
+	mkdir /data/rockchip_test
 fi
 
 #run stressapptest_test

@@ -329,15 +329,15 @@ network={
 	psk=\"$password\"
 	key_mgmt=WPA-PSK
 }
-" > /data/cfg/wpa_supplicant.conf
+" > /data/wpa_supplicant.conf
 
 if [ $debug -eq 1 ];then
 	echo "ctrl_interface=/var/run/wpa_supplicant"
-	/sbin/start-stop-daemon -S -m -p $PIDFILE1  -x $DAEMON1 -- -Dnl80211 -iwlan0 -c/data/cfg/wpa_supplicant.conf -ddddddddd > /data/wifi/wpa_supplicant.log &
+	/sbin/start-stop-daemon -S -m -p $PIDFILE1  -x $DAEMON1 -- -Dnl80211 -iwlan0 -c/data/wpa_supplicant.conf -ddddddddd > /data/wifi/wpa_supplicant.log &
 else
 	echo "ctrl_interface=/var/run/wpa_supplicant debug0"
 	#/sbin/start-stop-daemon -S -m -p /usr/bin/wpa_supplicant -b -x /var/run/wpa_supplicant.pid -- -Dnl80211 -iwlan0 -c/data/wpa_supplicant.conf
-	/sbin/start-stop-daemon -S -m -p $PIDFILE1 -b -x $DAEMON1 -- -Dnl80211 -iwlan0 -c/data/cfg/wpa_supplicant.conf
+	/sbin/start-stop-daemon -S -m -p $PIDFILE1 -b -x $DAEMON1 -- -Dnl80211 -iwlan0 -c/data/wpa_supplicant.conf
 fi
 
 sleep 2

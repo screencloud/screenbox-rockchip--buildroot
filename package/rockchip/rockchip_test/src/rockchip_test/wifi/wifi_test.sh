@@ -1,7 +1,7 @@
 #!/bin/sh
 
 DIR_WIFI=/rockchip_test/wifi
-RESULT_DIR=/data/cfg/rockchip_test/wifi
+RESULT_DIR=/data/rockchip_test/wifi
 
 wifi_sta_connect()
 {

@@ -17,7 +17,7 @@
 #soure file info: totle size 5MB
 #********************************************************************/
 
-test_dir=/data/cfg/rockchip_test/flash_test
+test_dir=/data/rockchip_test/flash_test
 source_dir=$test_dir/src_test_data
 dest_dir=$test_dir/des_test_data
 md5_dir=$test_dir/md5_data

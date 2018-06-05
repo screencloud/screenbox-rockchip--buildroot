@@ -1,6 +1,6 @@
 #!/bin/sh
 
-RESULT_DIR=/data/cfg/rockchip_test/
+RESULT_DIR=/data/rockchip_test/
 RESULT_LOG=${RESULT_DIR}/suspend_resume.log
 
 mkdir -p ${RESULT_DIR}
