@@ -7,7 +7,6 @@
 moudle_env()
 {
    export  MODULE_CHOICE
-
 }
 
 module_choice()
@@ -25,8 +24,8 @@ module_choice()
     echo "*****************************************************"
     echo "ddr test :            1 (memtester & stressapptest)"
     echo "cpu_dvfs_test:        2 (dvfs stresstest)"
-    echo "nand test:            3"
-    echo "gpio test:            4 (pio & irq & pull)"
+    echo "flash stress test:    3"
+    echo "bluetooth test:       4 (bluetooth on&off test)"
     echo "audio test:           5"
     echo "usb  test:            6 (insert & read & write)"
     echo "player test:          7 "
@@ -52,15 +51,9 @@ cpu_dvfs_test()
     sh /rockchip_test/dvfs/dvfs_test.sh
 }
 
-nand_test()
+flash_stress_test()
 {
-   rm /nand_tools -rf
-   cp /test_plan/nand_tools / -rf
-   sync
-   cd /nand_tools/
-   umount /mnt
-   sh /nand_tools/Nand_test_tools.sh
-   
+   bash /rockchip_test/flash_test/flash_stress_test.sh 5 20000&
 }
 
 usb_test()
@@ -79,7 +72,7 @@ suspend_resume_test()
 
 wifi_test()
 {
-    sh /test_plan/wifi/wifi_test.sh
+    sh /rockchip_test/wifi/wifi_test.sh
 }
 
 ethernet_test()
@@ -87,9 +80,9 @@ ethernet_test()
    sh /test_plan/ethernet/eth_test.sh 
 }
 
-gpio_test()
+bluetooth_test()
 {
-    sh /test_plan/gpio/gpio_test.sh
+    sh /rockchip_test/bluetooth/bt_onoff.sh &
 }
 
 audio_test()
@@ -126,10 +119,10 @@ module_test()
             cpu_dvfs_test
             ;;
         3)
-            nand_test
+            flash_stress_test
             ;;
         4)
-            gpio_test
+            bluetooth_test
             ;;
         5)
             audio_test
