@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Start 3399 linux service....
+# Start 3288 linux service....
 #
 
 case "$1" in
@@ -9,7 +9,7 @@ case "$1" in
 		mount -t debugfs none /sys/kernel/debug
 
 		# bluetooth
-		rkbt  /etc/bluetooth/bcm4354a1.hcd /dev/ttyS0 &
+		rkbt  /etc/bluetooth/BCM4335C0.hcd /dev/ttyS0 &
 
 		# music
 		/usr/bin/audioservice &
