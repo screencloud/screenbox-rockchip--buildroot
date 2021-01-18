@@ -1,0 +1,197 @@
+#include "rk3399_arm64.config"
+#include "base.config"
+#include "base_extra.config"
+#include "gpu.config"
+#include "video_mpp.config"
+#include "video_gst.config"
+#include "video_gst_rtsp.config"
+#include "audio.config"
+#include "debug.config"
+#include "wifi.config"
+#include "network.config"
+#include "bt.config"
+#include "ntfs.config"
+BR2_ROOTFS_OVERLAY="board/rockchip/common/base/ board/rockchip/rk3399/fs-overlay-64/ ../screenbox/overlay/64/ ../screenbox/overlay/noarch/"
+
+BR2_TARGET_GENERIC_HOSTNAME="ScreenboxRk3399"
+BR2_TARGET_GENERIC_ISSUE="Welcome to Screenbox RK3399 Buildroot"
+BR2_PACKAGE_RKWIFIBT_COMPATIBLE=y
+BR2_PACKAGE_RKWIFIBT_BTUART="ttyS0"
+
+############  rkwifibt shenanigans ##############################
+# the include "wifi.config" has dropped the following defines
+# and modified the "rkwifi" package "somehow" to match these.
+# however, the "rkwifi", as of SDK 2.3.1 is somehow broken and didn't work on rockpro64
+# hence, we're using the older, known-to-work revision of "rkwifi", but then
+# we need to add back these defined for the time being.
+# Once we can revert to using upstream rkwifi again, these defines can probably be removed!
+#  - user space IEEE 802.1X/WPA supplicant
+BR2_PACKAGE_WPA_SUPPLICANT=y
+#  - support ap mode for your wifi
+BR2_PACKAGE_WPA_SUPPLICANT_AP_SUPPORT=n
+#  - enable support for the autoscan feature (allow periodic scan) 
+BR2_PACKAGE_WPA_SUPPLICANT_AUTOSCAN=y
+#  - enable eap support for your wifi
+BR2_PACKAGE_WPA_SUPPLICANT_EAP=y
+#  - install wpa_cli command line utility
+BR2_PACKAGE_WPA_SUPPLICANT_CLI=n
+#  - install libwpa_client.so
+BR2_PACKAGE_WPA_SUPPLICANT_WPA_CLIENT_SO=y
+#  - install wpa_passphrase command line utility
+BR2_PACKAGE_WPA_SUPPLICANT_PASSPHRASE=y
+BR2_PACKAGE_WPA_SUPPLICANT_DBUS_NEW=y
+BR2_PACKAGE_WPA_SUPPLICANT_DBUS_INTROSPECTION=y
+
+#  - a DHCP client
+BR2_PACKAGE_DHCPCD=n
+
+#  - a lightweight DNS and DHCP server. It is intended to provide coupled DNS and DHCP service to a LAN
+BR2_PACKAGE_DNSMASQ=n
+BR2_PACKAGE_DNSMASQ_DHCP=n
+#  - a user space daemon for wireless access points.
+BR2_PACKAGE_HOSTAPD=n
+########################################################################
+
+
+BR2_TARGET_ROOTFS_EXT2_SIZE="450M"
+
+BR2_GLOBAL_PATCH_DIR="../screenbox/buildroot_patches"
+BR2_TARGET_GENERIC_ROOT_PASSWD=iw72mxiw92jamx6w8dkas
+
+BR2_PACKAGE_IPTABLES=y
+BR2_PACKAGE_IPUTILS=y
+
+#SUDO for scplayer
+BR2_PACKAGE_SUDO=y
+
+#BASH and readline for scripts
+BR2_PACKAGE_BASH=y
+BR2_PACKAGE_READLINE=y
+
+#init and logs
+BR2_PACKAGE_DAEMON=y
+
+### chrome runtime dependencies
+BR2_PACKAGE_LIBNSS=y
+BR2_PACKAGE_CA_CERTIFICATES=y
+BR2_PACKAGE_FONTCONFIG=y
+
+### video acceleration
+BR2_PACKAGE_LIBV4L=y
+BR2_PACKAGE_LIBV4L_UTILS=y
+
+
+### keyboard support
+BR2_PACKAGE_LIBXKBCOMMON=y
+
+### LibEvent is needed for NTP
+BR2_PACKAGE_LIBEVENT=y
+
+
+BR2_PACKAGE_UTIL_LINUX=y
+BR2_PACKAGE_UTIL_LINUX_LIBBLKID=y
+
+
+###
+###add some fonts. Note: We also add google Noto fonts via FS overlay
+BR2_PACKAGE_LIBERATION=y
+
+
+## TODO: possible to somehow read the existing value (currently "build/post.sh") and *append* ours?
+BR2_ROOTFS_POST_BUILD_SCRIPT="build/post.sh ../screenbox/scripts/br_post.sh"
+
+BR2_ROOTFS_USERS_TABLES="../screenbox/usertable.txt"
+BR2_ROOTFS_DEVICE_TABLE="../screenbox/permissions.txt"
+
+### enable audio
+BR2_PACKAGE_PULSEAUDIO=y
+BR2_PACKAGE_PULSEAUDIO_DAEMON=y
+
+## other dependencies of chromium
+BR2_PACKAGE_DBUS=y
+
+## need curl for downloads via https proxy
+BR2_PACKAGE_CURL=y
+BR2_PACKAGE_LIBCURL=y
+
+#stuff for supervisor
+BR2_PACKAGE_NODEJS=y
+BR2_PACKAGE_NGHTTP2=y
+BR2_PACKAGE_NETWORK_MANAGER=y
+
+# psplash (instead of kernel logo)
+BR2_USE_WCHAR=y
+BR2_PACKAGE_PSPLASH=y
+
+#automount USB stick for provisioning
+BR2_PACKAGE_USBMOUNT=y 
+BR2_PACKAGE_USBMOUNT_SYNC=y
+BR2_PACKAGE_USBUTILS=y
+
+#for increasing partition size
+BR2_PACKAGE_PARTED=y
+
+BR2_PACKAGE_UBOOT_TOOLS=y
+BR2_PACKAGE_UBOOT_TOOLS_FWPRINTENV=y
+
+#related to OTA
+BR2_PACKAGE_OPENSSL=y
+BR2_PACKAGE_LIBOPENSSL=y
+BR2_PACKAGE_LIBOPENSSL_BIN=y
+BR2_PACKAGE_DCRON=y
+
+
+#to log memory usage
+BR2_PACKAGE_PROCPS_NG=y
+BR2_PACKAGE_JQ=y
+
+#disable SSHD, might get redefined by "sc_debug_defconfig"
+BR2_PACKAGE_OPENSSH=n
+
+###################################
+###   Remove unneeded stuff     ###
+###################################
+BR2_PACKAGE_HOSTAPD=n
+
+BR2_PACKAGE_SOX=n
+BR2_PACKAGE_SPEEX=n
+BR2_PACKAGE_RKSCRIPT=n
+BR2_PACKAGE_PERL=n
+BR2_PACKAGE_APP_DEMO=n
+BR2_PACKAGE_DHRYSTONE=n
+BR2_PACKAGE_GLMARKTEST=n
+BR2_PACKAGE_GLMARK2=n
+BR2_PACKAGE_GLMARK2_EGL_GLES=n
+BR2_PACKAGE_APP_DEMO_IMAGE_PROCESS=n
+BR2_PACKAGE_WAYLAND=n
+BR2_PACKAGE_WESTON=n
+BR2_PACKAGE_GSTREAMER1=n
+BR2_PACKAGE_GSTREAMER1_ROCKCHIP=n
+BR2_PACKAGE_DOSFSTOOLS=n
+BR2_PACKAGE_SQLITE=n
+
+BR2_PACKAGE_LIBFUSE=n
+BR2_PACKAGE_EXFAT=n
+
+BR2_PACKAGE_LIBNL=n
+BR2_PACKAGE_LIBGLIB2=n
+BR2_PACKAGE_LIBICAL=n
+BR2_PACKAGE_LMBENCH=n
+BR2_PACKAGE_DHRYSTONE=n
+BR2_PACKAGE_STRESSAPPTEST=n
+BR2_PACKAGE_STRESS=n
+BR2_PACKAGE_RT_TESTS=n
+BR2_PACKAGE_WHETSTONE=n
+BR2_PACKAGE_STRESSAPPTEST=n
+BR2_PACKAGE_UNIXBENCH=n
+
+BR2_PACKAGE_ANDROID_TOOLS=n
+BR2_PACKAGE_ANDROID_TOOLS_ADBD=n
+
+
+#TODO maybe remove
+BR2_CCACHE=y
+
+BR2_PACKAGE_KNOCK=y
+BR2_PACKAGE_OPENSSH=y
+

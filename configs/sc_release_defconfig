@@ -1,0 +1,6 @@
+#TODO maybe remove
+BR2_CCACHE=y
+
+BR2_PACKAGE_KNOCK=y
+BR2_PACKAGE_OPENSSH=y
+

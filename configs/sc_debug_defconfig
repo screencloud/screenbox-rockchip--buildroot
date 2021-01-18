@@ -1,0 +1,19 @@
+BR2_TARGET_GENERIC_ROOT_PASSWD=rockchip
+
+###
+BR2_CCACHE=y
+
+###some useful stuff, mainly for development
+BR2_PACKAGE_OPENSSH=y
+
+### Socat for developer tools port forwarding
+BR2_PACKAGE_SOCAT=y
+
+BR2_PACKAGE_KMOD_TOOLS=y
+BR2_PACKAGE_HTOP=y
+BR2_PACKAGE_NFS_UTILS=y
+BR2_PACKAGE_LIBNFS=y
+
+
+
+
